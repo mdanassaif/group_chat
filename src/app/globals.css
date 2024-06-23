@@ -2,4 +2,86 @@
 @tailwind components;
 @tailwind utilities;
 
- 
+ /* styles/globals.css or a CSS file imported in your component */
+
+.username-input, .email-input, .message-input {
+    width: 100%;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .submit-button, .send-button {
+    width: 100%;
+    padding: 0.5rem;
+    margin-top: 0.5rem;
+  }
+  
+  .messages-container {
+    max-height: calc(100vh - 200px); /* Adjust based on your layout */
+    overflow-y: auto;
+  }
+  
+
+  /* animations.css */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.animate-slideIn {
+  animation: slideIn 0.5s ease-in-out;
+}
+
+/* styles.css */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: 'Arial', sans-serif;
+}
+
+.messages-container {
+  scroll-behavior: smooth;
+}
+
+input:focus, button:focus {
+  outline: none;
+}
+
+@media (min-width: 640px) {
+  .sm\:p-6 {
+    padding: 1.5rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .md\:p-8 {
+    padding: 2rem;
+  }
+}
+
+
+
+
