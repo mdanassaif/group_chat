@@ -139,8 +139,8 @@ const Chat: React.FC = () => {
   return (
     <div className="w-full max-w-2xl mx-auto h-screen bg-gray-100 flex flex-col">
       {!isUsernameSet ? (
-        <div className="flex flex-col items-center justify-center h-full p-4 bg-gradient-to-r from-purple-400 to-pink-600">
-          <h1 className="text-3xl font-bold mb-4 text-white animate-fadeIn">Join the Chat</h1>
+        <div className="flex flex-col items-center justify-center h-full p-4 bg-gradient-to-r from-[#f86b698e] to-[#e8f0a49b] ">
+          <h1 className="text-3xl font-bold mb-4 text-[#4b6062] animate-fadeIn">Join the Chat</h1>
           <input
             type="text"
             value={username}
@@ -150,7 +150,7 @@ const Chat: React.FC = () => {
           />
           <button
             onClick={handleUsernameSubmit}
-            className="px-6 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 focus:outline-none focus:bg-purple-600 w-full max-w-sm"
+            className="px-6 py-2 bg-[#f26c6a] text-white rounded-lg hover:bg-[#e53935] focus:outline-none  w-full max-w-sm"
           >
             Start Chatting
           </button>
@@ -159,7 +159,7 @@ const Chat: React.FC = () => {
         <div className="flex flex-col h-full bg-white rounded-lg overflow-hidden">
           <div
             ref={messagesContainerRef}
-            className="flex-1 p-4 overflow-y-auto bg-gradient-to-b from-blue-200 to-purple-200 sm:p-6 md:p-8 messages-container animate-fadeIn"
+            className="flex-1 p-4 overflow-y-auto bg-gradient-to-r from-[#f86b698e] to-[#e8f0a49b] sm:p-6 md:p-8 messages-container animate-fadeIn"
           >
             {messages.map((message) => (
               <div key={message.id} className="flex items-start mb-4 animate-slideIn">
@@ -180,7 +180,7 @@ const Chat: React.FC = () => {
                     </span>
                   </div>
                   {message.text && (
-                    <div className="bg-blue-500 text-white px-4 py-2 rounded-lg">
+                    <div className="bg-[#ccf1f690] text-[#233d40] px-4 py-2 rounded-lg">
                       {message.text}
                     </div>
                   )}
@@ -200,7 +200,7 @@ const Chat: React.FC = () => {
               </div>
             ))}
           </div>
-          <div className="p-4 bg-gradient-to-t from-blue-300 to-purple-300 sm:p-6 md:p-8">
+          <div className="bg-white  p-20">
             <div className="flex items-center mb-2">
               <button
                 ref={emojiButtonRef}
@@ -244,7 +244,7 @@ const Chat: React.FC = () => {
               />
               <button
                 onClick={sendMessage}
-                className="ml-3 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 focus:outline-none focus:bg-purple-600"
+                className="ml-3 px-4 py-2 bg-[#f26c6a] text-white rounded-lg hover:bg-[#e53935] focus:outline-none "
               >
                 Send
               </button>
