@@ -7,6 +7,7 @@ import { ref, onValue, push, set, off } from 'firebase/database';
 import { v4 as uuidv4 } from 'uuid';
 import EmojiSVG from '../../public/emoji.svg';
 import PhotoSVG from '../../public/photo.svg';
+import Modal from './modalbox'; 
 import multiavatar from '@multiavatar/multiavatar';
 
 interface Message {
@@ -26,6 +27,7 @@ const Chat: React.FC = () => {
   const [username, setUsername] = useState<string>('');
   const [isUsernameSet, setIsUsernameSet] = useState<boolean>(false);
   const [avatarUrl, setAvatarUrl] = useState<string>('');
+  const [showModal, setShowModal] = useState(false);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
@@ -175,24 +177,36 @@ const Chat: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-gray-100">
-      {!isUsernameSet ? (
-        <div className="flex flex-col items-center justify-center h-full p-4 bg-gradient-to-r from-[#f86b698e] to-[#e8f0a49b]">
-          <h1 className="text-3xl font-bold mb-4 text-[#4b6062] animate-fadeIn">Join the Chat</h1>
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="Username"
-            className="mb-4 px-4 py-2 rounded-lg border border-gray-300 focus:outline-none w-full max-w-sm"
-          />
-          <button
-            onClick={handleUsernameSubmit}
-            className="px-6 py-2 bg-[#f26c6a] text-white rounded-lg hover:bg-[#e53935] focus:outline-none w-full max-w-sm"
-          >
-            Start Chatting
-          </button>
-        </div>
-      ) : (
+    {!isUsernameSet ? (
+      <div className="flex flex-col items-center justify-center h-full p-4 bg-gradient-to-r from-[#f86b698e] to-[#e8f0a49b]">
+        <h1 className="text-3xl font-bold mb-2 text-[#4b6062] animate-fadeIn">Join the Live Chat</h1>
+        <p className="text-md text-[#0f456f] mb-4 animate-fadeIn">Do and Enjoy gossip with coders</p>
+        <input
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="Username"
+          className="mb-4 px-4 py-2 rounded-lg border border-gray-300 focus:outline-none w-full max-w-sm"
+        />
+        <button
+          onClick={handleUsernameSubmit}
+          className="px-6 py-2 bg-[#f26c6a] text-white rounded-lg hover:bg-[#e53935] focus:outline-none w-full max-w-sm"
+        >
+          Start Chatting
+        </button>
+       
+        <p
+  className="absolute bottom-20 left-1/2 transform -translate-x-1/2 text-[#092943] text-md cursor-pointer underline"
+  onClick={() => setShowModal(true)}
+>
+  How It Works ?
+</p>
+
+   
+        {/* Render modal when showModal is true */}
+        {showModal && <Modal onClose={() => setShowModal(false)} />}
+      </div>
+    ) : (
         <div className="flex flex-col flex-1 h-full bg-white rounded-lg overflow-hidden">
           <div
             ref={messagesContainerRef}
