@@ -2,27 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
- /* styles/globals.css or a CSS file imported in your component */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: 'Arial', sans-serif;
+}
 
 .username-input, .email-input, .message-input {
-    width: 100%;
-    padding: 0.5rem;
-    margin-bottom: 0.5rem;
-  }
-  
-  .submit-button, .send-button {
-    width: 100%;
-    padding: 0.5rem;
-    margin-top: 0.5rem;
-  }
-  
-  .messages-container {
-    max-height: calc(100vh - 200px); /* Adjust based on your layout */
-    overflow-y: auto;
-  }
-  
+  width: 100%;
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+}
 
-  /* animations.css */
+.submit-button, .send-button {
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.messages-container {
+  overflow-y: auto;
+  padding: 0 1rem;
+  scroll-behavior: smooth;
+}
+
+input:focus, button:focus {
+  outline: none;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -51,25 +62,6 @@
   animation: slideIn 0.5s ease-in-out;
 }
 
-/* styles.css */
-html, body {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-}
-
-body {
-  font-family: 'Arial', sans-serif;
-}
-
-.messages-container {
-  scroll-behavior: smooth;
-}
-
-input:focus, button:focus {
-  outline: none;
-}
-
 @media (min-width: 640px) {
   .sm\:p-6 {
     padding: 1.5rem;
@@ -82,6 +74,8 @@ input:focus, button:focus {
   }
 }
 
-
-
-
+@media (max-height: 768px) {
+  .flex-1 {
+    flex: 1;
+  }
+}
