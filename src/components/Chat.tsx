@@ -82,6 +82,13 @@ const Chat: React.FC = () => {
     setNewMessage(e.target.value);
   };
 
+  // Function to format timestamp
+const formatTimestamp = (timestamp: number) => {
+  const date = new Date(timestamp);
+  return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric' });
+};
+
+
   // Function to send message
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
@@ -111,28 +118,34 @@ const Chat: React.FC = () => {
   };
 
   // Function to handle bot response
-  const handleBotResponse = async (message: string) => {
-    const botResponse = simulateBotResponse(message);
-    if (botResponse !== '') {
-      const messagesRef = ref(database, 'messages');
-      const newMessageRef = push(messagesRef);
-      const botMessage: Message = {
-        id: uuidv4(),
-        text: botResponse,
-        timestamp: Date.now(),
-        user: 'Bot', // Set the bot's username or identifier
-        avatarUrl: '/bot-avatar-url.png', // Replace with actual bot avatar URL
-        backgroundColor: randomLightColor(),
-        textColor: '#000000',
-      };
+  // Function to handle bot response
+const handleBotResponse = async (message: string) => {
+  const botResponse = simulateBotResponse(message);
+  if (botResponse !== '') {
+    const messagesRef = ref(database, 'messages');
+    const newMessageRef = push(messagesRef);
+    const botAvatarUrl = '/bot-avatar-url.png'; // Replace with actual bot avatar URL
 
-      try {
-        await set(newMessageRef, botMessage);
-      } catch (error) {
-        console.error('Error sending bot message:', error);
-      }
+    const botMessage: Message = {
+      id: uuidv4(),
+      text: botResponse,
+      timestamp: Date.now(),
+      user: 'Bot', // Set the bot's username or identifier
+      avatarUrl: botAvatarUrl,
+      backgroundColor: randomLightColor(),
+      textColor: '#000000',
+    };
+
+    try {
+      await set(newMessageRef, botMessage);
+      setMessages((prevMessages) => [...prevMessages, botMessage]); // Update state to include bot message
+      scrollToBottom(); // Scroll to bottom after adding bot message
+    } catch (error) {
+      console.error('Error sending bot message:', error);
     }
-  };
+  }
+};
+
 
   // Function to apply message formatting
   const applyMessageFormatting = (text: string) => {
@@ -248,37 +261,44 @@ const Chat: React.FC = () => {
                 day: 'numeric',
               })}
             </h2>
-            {/* Render messages */}
-            {messages.map((message) => {
-              const backgroundColor = message.backgroundColor || '#FFFFFF';
-              const textColor = message.textColor || '#000000';
-              const messageStyle = { backgroundColor, color: textColor };
+       
+            
+{messages.map((message) => {
+  const backgroundColor = message.backgroundColor || '#FFFFFF';
+  const textColor = message.textColor || '#000000';
+  const messageStyle = { backgroundColor, color: textColor };
 
-              return (
-                <div className={`flex items-start mb-4 animate-slideIn`} key={message.id}>
-                  <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
-                    <Image
-                      src={message.avatarUrl || multiavatar(message.user)}
-                      alt="Avatar"
-                      width={40}
-                      height={40}
-                    />
-                  </div>
-                  <div className="ml-3 p-2 bg-white rounded-lg shadow-sm" style={messageStyle}>
-                    <div
-                      className="leading-tight"
-                      style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
-                      dangerouslySetInnerHTML={{ __html: message.formattedText || message.text || '' }}
-                    />
-                    {message.imageUrl && (
-                      <div className="mt-2">
-                        <Image src={message.imageUrl} alt="Sent Image" width={200} height={200} className="rounded-lg" />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+  return (
+    <div className={`flex items-start mb-4 animate-slideIn`} key={message.id}>
+      <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
+        <Image
+          src={message.avatarUrl || multiavatar(message.user)}
+          alt="Avatar"
+          width={40}
+          height={40}
+        />
+      </div>
+      <div className="ml-3 p-2 bg-white rounded-lg shadow-sm" style={messageStyle}>
+        <div className="flex justify-between items-center mb-1">
+          <span className="text-sm font-semibold">{message.user}</span>
+          <span className="text-xs text-gray-400">{formatTimestamp(message.timestamp)}</span>
+        </div>
+        <div
+          className="leading-tight"
+          style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+          dangerouslySetInnerHTML={{ __html: message.formattedText || message.text || '' }}
+        />
+        {message.imageUrl && (
+          <div className="mt-2">
+            <Image src={message.imageUrl} alt="Sent Image" width={200} height={200} className="rounded-lg" />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+})}
+
+
           </div>
           {/* Input area for new messages */}
           <div className="bg-white p-4" style={{ height: '15%' }}>
