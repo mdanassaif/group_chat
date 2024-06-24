@@ -3,6 +3,7 @@ const nextConfig = {
   images: {
     domains: ['avatars.dicebear.com', 'pixabay.com'],  
   },
+  
 };
 
 export default nextConfig;

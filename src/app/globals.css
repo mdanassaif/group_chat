@@ -16,12 +16,28 @@ body {
   width: 100%;
   padding: 0.5rem;
   margin-bottom: 0.5rem;
+  border: 1px solid #ccc;
+  transition: border-color 0.3s ease;
+}
+
+.username-input:focus, .email-input:focus, .message-input:focus {
+  border-color: dodgerblue;
 }
 
 .submit-button, .send-button {
   width: 100%;
   padding: 0.5rem;
   margin-top: 0.5rem;
+  background-color: dodgerblue;
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.submit-button:hover, .send-button:hover {
+  background-color: #0073e6;
+  transform: scale(1.05);
 }
 
 .messages-container {
@@ -37,29 +53,31 @@ input:focus, button:focus {
 @keyframes fadeIn {
   from {
     opacity: 0;
+    transform: translateY(-10px);
   }
   to {
     opacity: 1;
+    transform: translateY(0);
   }
 }
 
 @keyframes slideIn {
   from {
-    transform: translateY(20px);
+    transform: translateX(-100%);
     opacity: 0;
   }
   to {
-    transform: translateY(0);
+    transform: translateX(0);
     opacity: 1;
   }
 }
 
 .animate-fadeIn {
-  animation: fadeIn 0.5s ease-in-out;
+  animation: fadeIn 0.5s ease-out forwards;
 }
 
 .animate-slideIn {
-  animation: slideIn 0.5s ease-in-out;
+  animation: slideIn 0.5s ease-out forwards;
 }
 
 @media (min-width: 640px) {
@@ -79,6 +97,3 @@ input:focus, button:focus {
     flex: 1;
   }
 }
-
-
- 
