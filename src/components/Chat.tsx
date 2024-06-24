@@ -154,7 +154,7 @@ const Chat: React.FC = () => {
       return (
         <div key={`separator-${message.id}`} className="flex justify-center items-center my-2">
           <hr className="w-1/3 border-t-2 border-gray-300" />
-          <div className="mx-4 text-gray-500 text-xs sm:text-sm">{formattedDate}</div>
+          <div className="mx-4 text-gray-500 text-[.65rem] sm:text-sm">{formattedDate}</div>
           <hr className="w-1/3 border-t-2 border-gray-300" />
         </div>
       );
@@ -316,4 +316,3 @@ const Chat: React.FC = () => {
 };
 
 export default Chat;
-
