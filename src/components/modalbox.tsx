@@ -14,8 +14,8 @@ const Modal = ({ onClose }: { onClose: () => void }) => {
           </button>
         </div>
         <div className="text-sm text-gray-700">
-          <Image src="https://pixabay.com/get/gd8c9817be2c3e83ab723c5605b8d17910ddcc17c1a12ee6506da8f104d7fde62a0378e1b22b988e742af796ba21d75aff1477b6e320334aa53d2bdabb8d690f5_1280.jpg" alt="App Image"  width={50} height={50} className="w-full h-auto rounded-lg mb-4" />
-          <p>This is a live group chat application built with Next.js, Firebase, Tailwind CSS, IconBuddy, Culrs and Vercel</p>
+          <Image src="https://pixabay.com/get/gd8c9817be2c3e83ab723c5605b8d17910ddcc17c1a12ee6506da8f104d7fde62a0378e1b22b988e742af796ba21d75aff1477b6e320334aa53d2bdabb8d690f5_1280.jpg" alt="App Image"  width={100} height={100} className="w-full h-auto rounded-lg mb-4" />
+          <p>This is a live group chat application built with Next.js, Firebase, Tailwind CSS, IconBuddy, Culrs and Vercel,</p>
           <br/>
           <p>Users can send messages, share photos, use emojis, and enjoy random avatars generated based on their usernames.</p>
           <br/>

@@ -180,7 +180,7 @@ const Chat: React.FC = () => {
     {!isUsernameSet ? (
       <div className="flex flex-col items-center justify-center h-full p-4 bg-gradient-to-r from-[#f86b698e] to-[#e8f0a49b]">
         <h1 className="text-3xl font-bold mb-2 text-[#4b6062] animate-fadeIn">Join the Live Chat</h1>
-        <p className="text-md text-[#0f456f] mb-4 animate-fadeIn">Do and Enjoy gossip with coders</p>
+        <p className="text-md text-[#0f456f] mb-4 animate-fadeIn">Gossip joyfully and openly with friends</p>
         <input
           type="text"
           value={username}
