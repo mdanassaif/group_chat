@@ -21,7 +21,6 @@ interface Message {
   textColor?: string;
 }
 
-
 // Chat component
 const Chat: React.FC = () => {
   // State variables
@@ -40,6 +39,17 @@ const Chat: React.FC = () => {
   // Refs
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Helper function to format date
+  const formatDate = (timestamp: number) => {
+    const messageDate = new Date(timestamp);
+    return messageDate.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  };
 
   // Effect to fetch messages from database
   useEffect(() => {
@@ -223,12 +233,21 @@ const Chat: React.FC = () => {
     const trimmedMessage = message.trim().toLowerCase();
     if (trimmedMessage === 'hi' || trimmedMessage === 'hi?' || trimmedMessage === 'hi!') {
       return "Your hi is cute, but I'm a bot.";
-    }
-    else if (trimmedMessage === 'Hello' || trimmedMessage === 'helo') {
+    } else if (trimmedMessage === 'Hello' || trimmedMessage === 'helo') {
       return "Hey, how's it going, but I'm a bot.";
     }
     return ''; // Return empty string for other messages
   };
+
+  // Group messages by date
+  const groupedMessages = messages.reduce((acc, message) => {
+    const messageDate = new Date(message.timestamp).toLocaleDateString('en-US');
+    if (!acc[messageDate]) {
+      acc[messageDate] = [];
+    }
+    acc[messageDate].push(message);
+    return acc;
+  }, {} as { [key: string]: Message[] });
 
   return (
     <div className="flex flex-col h-screen w-screen bg-gray-100">
@@ -239,59 +258,53 @@ const Chat: React.FC = () => {
             className="flex-1 p-4 overflow-y-auto bg-gradient-to-r from-[#f86b698e] to-[#e8f0a49b] messages-container animate-fadeIn"
             style={{ height: '85%', paddingTop: '15px' }}
           >
-            {/* Header to display current date */}
-            <h2 className="text-center text-gray-500 text-sm mb-2">
-              {new Date().toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-              })}
-            </h2>
-            {/* Render messages */}
+            {/* Render grouped messages */}
+            {Object.keys(groupedMessages).map((date) => (
+              <div key={date}>
+                <h2 className="text-center text-gray-500 text-sm mb-2">{date}</h2>
+                {groupedMessages[date].map((message) => {
+                  const backgroundColor = message.backgroundColor || '#FFFFFF';
+                  const textColor = message.textColor || '#000000';
+                  const messageStyle = { backgroundColor, color: textColor };
 
-            {messages.map((message) => {
-              const backgroundColor = message.backgroundColor || '#FFFFFF';
-              const textColor = message.textColor || '#000000';
-              const messageStyle = { backgroundColor, color: textColor };
+                  // Convert timestamp to a Date object
+                  const messageDate = new Date(message.timestamp);
 
-              // Convert timestamp to a Date object
-              const messageDate = new Date(message.timestamp);
+                  // Format time as HH:mm (24-hour format)
+                  const formattedTime = messageDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-              // Format time as HH:mm (24-hour format)
-              const formattedTime = messageDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-              return (
-                <div className={`flex items-start mb-4 animate-slideIn`} key={message.id}>
-                  <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
-                    <Image
-                      src={message.avatarUrl || multiavatar(message.user)}
-                      alt="Avatar"
-                      width={40}
-                      height={40}
-                    />
-                  </div>
-                  <div className="ml-3 p-2 bg-white rounded-lg shadow-sm" style={messageStyle}>
-                    <div className="flex justify-between items-center mb-1 min-w-[150px]">
-                      <span className="text-sm font-semibold">{message.user}</span>
-                      <span className="text-xs text-gray-400">{formattedTime}</span>
-                    </div>
-
-                    <div
-                      className="leading-tight"
-                      style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
-                      dangerouslySetInnerHTML={{ __html: message.formattedText || message.text || '' }}
-                    />
-                    {message.imageUrl && (
-                      <div className="mt-2">
-                        <Image src={message.imageUrl} alt="Sent Image" width={200} height={200} className="rounded-lg" />
+                  return (
+                    <div className={`flex items-start mb-4 animate-slideIn`} key={message.id}>
+                      <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
+                        <Image
+                          src={message.avatarUrl || multiavatar(message.user)}
+                          alt="Avatar"
+                          width={40}
+                          height={40}
+                        />
                       </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                      <div className="ml-3 p-2 bg-white rounded-lg shadow-sm" style={messageStyle}>
+                        <div className="flex justify-between items-center mb-1 min-w-[150px]">
+                          <span className="text-sm font-semibold">{message.user}</span>
+                          <span className="text-xs text-gray-400">{formattedTime}</span>
+                        </div>
 
+                        <div
+                          className="leading-tight"
+                          style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                          dangerouslySetInnerHTML={{ __html: message.formattedText || message.text || '' }}
+                        />
+                        {message.imageUrl && (
+                          <div className="mt-2">
+                            <Image src={message.imageUrl} alt="Sent Image" width={200} height={200} className="rounded-lg" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
           </div>
           {/* Input area for new messages */}
           <div className="bg-white p-4" style={{ height: '15%' }}>
