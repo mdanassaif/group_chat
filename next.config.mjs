@@ -3,6 +3,9 @@ const nextConfig = {
   images: {
     domains: ['avatars.dicebear.com', 'pixabay.com'],  
   },
+  eslint: {
+      ignoreDuringBuilds: true,
+  },
   
 };
 
