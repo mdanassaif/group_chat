@@ -103,45 +103,55 @@ const Chat: React.FC = () => {
   };
 
   // Function to send message
-  const sendMessage = async () => {
-    if (!newMessage.trim()) return;
+  const validEmojis = ['😊', '😂', '😍', '🔥', '❤️', '🎉', '👍'];
 
-    // Check if the new message contains non-English characters
-    const containsNonEnglish = /[^\x00-\x7F]+/.test(newMessage);
-    if (containsNonEnglish) {
-      setShowLanguageModal(true);
-      return;
-    }
+const sendMessage = async () => {
+  if (!newMessage.trim()) return;
 
-    if (filter.isProfane(newMessage)) {
-      // Show the profanity modal
-      setShowProfanityModal(true);
-      return;
-    }
+  // Check if the message contains any non-English characters excluding the valid emojis
+  const nonEnglishExceptEmoji = /[^\x00-\x7F\u00A9-\u1FAFF]+/.test(newMessage.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, ''));
 
-    const messagesRef = ref(database, 'messages');
-    const newMessageRef = push(messagesRef);
-    const backgroundColor = randomLightColor();
-    const newMessageData: Message = {
-      id: uuidv4(),
-      text: newMessage,
-      formattedText: applyMessageFormatting(newMessage),
-      timestamp: Date.now(),
-      user: username,
-      avatarUrl: avatarUrl,
-      backgroundColor: backgroundColor,
-      textColor: '#000000',
-    };
+  if (nonEnglishExceptEmoji) {
+    setShowLanguageModal(true);
+    return;
+  }
 
-    try {
-      await set(newMessageRef, newMessageData);
-      setNewMessage('');
-      resetFormatting();
-      handleBotResponse(newMessage); // Call function to handle bot response
-    } catch (error) {
-      console.error('Error sending message:', error);
-    }
+  if (filter.isProfane(newMessage)) {
+    // Show the profanity modal
+    setShowProfanityModal(true);
+    return;
+  }
+
+  const messagesRef = ref(database, 'messages');
+  const newMessageRef = push(messagesRef);
+  const backgroundColor = randomLightColor();
+  const newMessageData: Message = {
+    id: uuidv4(),
+    text: newMessage,
+    formattedText: applyMessageFormatting(newMessage),
+    timestamp: Date.now(),
+    user: username,
+    avatarUrl: avatarUrl,
+    backgroundColor: backgroundColor,
+    textColor: '#000000',
   };
+
+  try {
+    // Check if the message contains any valid emojis
+    const hasValidEmoji = validEmojis.some(emoji => newMessage.includes(emoji));
+    if (!hasValidEmoji) {
+      setShowInvalidEmojiModal(true);
+      return;
+    }
+
+    await set(newMessageRef, newMessageData);
+    setNewMessage('');
+    resetFormatting();
+    handleBotResponse(newMessage); // Call function to handle bot response
+  } catch (error) {
+    console.error('Error sending message:', error);
+  }
+};
 
 
   // Function to handle bot response
