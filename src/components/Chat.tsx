@@ -102,56 +102,50 @@ const Chat: React.FC = () => {
     setNewMessage(e.target.value);
   };
 
-  // Function to send message
-  const validEmojis = ['😊', '😂', '😍', '🔥', '❤️', '🎉', '👍'];
+  const allowedEmojis = ['😊', '😂', '😍', '🔥', '❤️', '🎉', '👍'];
 
-const sendMessage = async () => {
-  if (!newMessage.trim()) return;
+  const sendMessage = async () => {
+    if (!newMessage.trim()) return;
 
-  // Check if the message contains any non-English characters excluding the valid emojis
-  const nonEnglishExceptEmoji = /[^\x00-\x7F\u00A9-\u1FAFF]+/.test(newMessage.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, ''));
+    // Check if the message contains any of the allowed emojis
+    const containsAllowedEmoji = allowedEmojis.some(emoji => newMessage.includes(emoji));
+    const containsEnglishText = /[a-zA-Z]/.test(newMessage); // Check if message contains English text
 
-  if (nonEnglishExceptEmoji) {
-    setShowLanguageModal(true);
-    return;
-  }
-
-  if (filter.isProfane(newMessage)) {
-    // Show the profanity modal
-    setShowProfanityModal(true);
-    return;
-  }
-
-  const messagesRef = ref(database, 'messages');
-  const newMessageRef = push(messagesRef);
-  const backgroundColor = randomLightColor();
-  const newMessageData: Message = {
-    id: uuidv4(),
-    text: newMessage,
-    formattedText: applyMessageFormatting(newMessage),
-    timestamp: Date.now(),
-    user: username,
-    avatarUrl: avatarUrl,
-    backgroundColor: backgroundColor,
-    textColor: '#000000',
-  };
-
-  try {
-    // Check if the message contains any valid emojis
-    const hasValidEmoji = validEmojis.some(emoji => newMessage.includes(emoji));
-    if (!hasValidEmoji) {
-      setShowLanguageModal(true);
+    if (!containsAllowedEmoji && !containsEnglishText) {
+      setShowLanguageModal(true); // Show modal for non-allowed content
       return;
     }
 
-    await set(newMessageRef, newMessageData);
-    setNewMessage('');
-    resetFormatting();
-    handleBotResponse(newMessage); // Call function to handle bot response
-  } catch (error) {
-    console.error('Error sending message:', error);
-  }
-};
+    if (filter.isProfane(newMessage)) {
+      // Show the profanity modal
+      setShowProfanityModal(true);
+      return;
+    }
+
+    const messagesRef = ref(database, 'messages');
+    const newMessageRef = push(messagesRef);
+    const backgroundColor = randomLightColor();
+    const newMessageData = {
+      id: uuidv4(),
+      text: newMessage,
+      formattedText: applyMessageFormatting(newMessage),
+      timestamp: Date.now(),
+      user: username,
+      avatarUrl: avatarUrl,
+      backgroundColor: backgroundColor,
+      textColor: '#000000',
+    };
+
+    try {
+      await set(newMessageRef, newMessageData);
+      setNewMessage('');
+      resetFormatting();
+      handleBotResponse(newMessage); // Call function to handle bot response
+    } catch (error) {
+      console.error('Error sending message:', error);
+    }
+  };
+
 
 
   // Function to handle bot response
@@ -467,27 +461,27 @@ const sendMessage = async () => {
             </div>
             {/* Emoji menu */}
             {showEmojiMenu && showEmojiMenuPosition && (
-  <div
-    className="fixed z-10 bg-[#fff6a5] border border-gray-300 rounded-lg shadow-lg p-2 animate__animated animate__fadeIn animate__faster"
-    style={{
-      top: showEmojiMenuPosition.top - 20, // Adjust positioning for better appearance
-      left: showEmojiMenuPosition.left,
-      marginBottom: '2rem', // Increase gap from the bottom
-    }}
-  >
-    <div className="grid grid-cols-7 gap-2">
-      {['😊', '😂', '😍', '🔥', '❤️', '🎉', '👍'].map((emoji) => (
-        <button
-          key={emoji}
-          onClick={() => handleEmojiClick(emoji)}
-          className="p-3 rounded-lg text-xl transition-transform transform hover:scale-110 hover:bg-[#ff8985]"
-        >
-          {emoji}
-        </button>
-      ))}
-    </div>
-  </div>
-)}
+              <div
+                className="fixed z-10 bg-[#fff6a5] border border-gray-300 rounded-lg shadow-lg p-2 animate__animated animate__fadeIn animate__faster"
+                style={{
+                  top: showEmojiMenuPosition.top - 20, // Adjust positioning for better appearance
+                  left: showEmojiMenuPosition.left,
+                  marginBottom: '2rem', // Increase gap from the bottom
+                }}
+              >
+                <div className="grid grid-cols-7 gap-2">
+                  {['😊', '😂', '😍', '🔥', '❤️', '🎉', '👍'].map((emoji) => (
+                    <button
+                      key={emoji}
+                      onClick={() => handleEmojiClick(emoji)}
+                      className="p-3 rounded-lg text-xl transition-transform transform hover:scale-110 hover:bg-[#ff8985]"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
 
 
