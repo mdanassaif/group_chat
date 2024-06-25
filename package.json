@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@multiavatar/multiavatar": "^1.0.7",
+    "axios": "^1.7.2",
     "firebase": "^10.12.2",
     "gravatar": "^1.8.2",
     "md5": "^2.3.0",

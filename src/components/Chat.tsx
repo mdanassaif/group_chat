@@ -8,6 +8,7 @@ import multiavatar from '@multiavatar/multiavatar';
 import Modal from './modalbox';
 import EmojiSVG from '../../public/emoji.svg';
 import PhotoSVG from '../../public/photo.svg';
+const axios = require('axios');
 
 interface Message {
   id: string;
@@ -120,29 +121,30 @@ const Chat: React.FC = () => {
     }
   };
 
-  // Function to handle bot response
-  const handleBotResponse = async (message: string) => {
-    const botResponse = simulateBotResponse(message);
-    if (botResponse !== '') {
-      const messagesRef = ref(database, 'messages');
-      const newMessageRef = push(messagesRef);
-      const botMessage: Message = {
-        id: uuidv4(),
-        text: botResponse,
-        timestamp: Date.now(),
-        user: 'Bot', // Set the bot's username or identifier
-        avatarUrl: '/bot-avatar-url.png', // Replace with actual bot avatar URL
-        backgroundColor: randomLightColor(),
-        textColor: '#000000',
-      };
+// Function to handle bot response
+const handleBotResponse = async (message: string) => {
+  const botResponse = await simulateBotResponse(message);
+  if (botResponse !== '') {
+    const messagesRef = ref(database, 'messages');
+    const newMessageRef = push(messagesRef);
+    const botMessage: Message = {
+      id: uuidv4(),
+      text: botResponse,
+      timestamp: Date.now(),
+      user: 'Bot', // Set the bot's username or identifier
+      avatarUrl: '/bot-avatar-url.png', // Replace with actual bot avatar URL
+      backgroundColor: '#ecc1ff',
+      textColor: '#000000',
+    };
 
-      try {
-        await set(newMessageRef, botMessage);
-      } catch (error) {
-        console.error('Error sending bot message:', error);
-      }
+    try {
+      await set(newMessageRef, botMessage);
+    } catch (error) {
+      console.error('Error sending bot message:', error);
     }
-  };
+  }
+};
+
 
   // Function to apply message formatting
   const applyMessageFormatting = (text: string) => {
@@ -223,46 +225,74 @@ const Chat: React.FC = () => {
     }
   };
 
-  // Function to generate random light color
-  const randomLightColor = () => {
-    return '#b7ebf2';
-  };
+    // Function to generate random light color
+    const randomLightColor = () => {
+      return '#b7ebf2';
+    };
 
-  // Function to simulate bot response
-  const simulateBotResponse = (message: string) => {
-    const trimmedMessage = message.trim().toLowerCase();
-    if (trimmedMessage === 'hi' || trimmedMessage === 'hi?' || trimmedMessage === 'hi!') {
-      return "Your 'hi' is quite pleasant, though I'm but a humble bot. How may I assist you today?";
-    } else if (trimmedMessage === 'hello' || trimmedMessage === 'helo') {
-      return "Ah, a hearty 'hello'! I'm here to lend my digital assistance. What brings you by?";
-    } else if (trimmedMessage === 'hey' || trimmedMessage === 'heya' || trimmedMessage === 'heya!') {
-      return "Greetings! 'Hey' is always a friendly start. How can I be of help?";
-    } else if (trimmedMessage.includes('how are you') || trimmedMessage.includes('how r u')) {
-      return "I'm functioning optimally in my digital realm. Thank you for asking! How can I assist you further?";
-    } else if (trimmedMessage.includes('what can you do') || trimmedMessage.includes('capabilities')) {
-      return "I possess a wide range of capabilities, from answering queries to assisting in tasks. Feel free to ask me anything!";
-    } else if (trimmedMessage.includes('thank')) {
-      return "You're welcome! It's my pleasure to assist.";
-    } else if (trimmedMessage.includes('bye') || trimmedMessage.includes('goodbye')) {
-      return "Farewell for now! Should you require any more assistance, I'll be here.";
-    } else if (trimmedMessage.includes('help') || trimmedMessage.includes('assist')) {
-      return "I'm here to help! Just let me know what you need.";
-    } else if (trimmedMessage.includes('nice to meet you')) {
-      return "The pleasure is mine! How can I make your acquaintance even better?";
-    } else if (trimmedMessage.includes('interesting')) {
-      return "I'm glad you find it interesting! Is there anything specific you'd like to explore?";
-    } else if (trimmedMessage.includes('tell me about yourself') || trimmedMessage.includes('introduce yourself')) {
-      return "I'm a digital assistant designed to provide information and assistance. How can I assist you today?";
-    } else if (trimmedMessage.includes('who created you') || trimmedMessage.includes('your creator')) {
-      return "I was created by a team of developers who wanted to bring helpful technology into the world!";
-    } else if (trimmedMessage.includes('joke')) {
-      return "Sure, here's one: Why don't scientists trust atoms? Because they make up everything!";
-    } else if (trimmedMessage.includes('lol')) {
-      return "Haha, 'lol' indeed! Laughter is always welcome here. Anything else on your mind?";
+ const getRandomFact = async () => {
+    try {
+        const response = await axios.get('https://api.chucknorris.io/jokes/random');
+        return response.data.value;
+    } catch (error) {
+        console.error('Error fetching random fact:', error);
+        return 'Try Again Later or use other commands: /advice, /joke';
     }
-    return "";
 };
 
+const getRandomJoke = async () => {
+    try {
+        const response = await axios.get('https://icanhazdadjoke.com/', {
+            headers: { 'Accept': 'application/json' }
+        });
+        return response.data.joke;
+    } catch (error) {
+        console.error('Error fetching random joke:', error);
+        return 'Try Again Later or use other commands: /advice, /fact';
+    }
+};
+
+
+interface TriviaQuestion {
+    question: string;
+    answer: string;
+}
+
+ 
+
+const getRandomAdvice = async () => {
+    try {
+        const response = await axios.get('https://api.adviceslip.com/advice');
+        return response.data.slip.advice;
+    } catch (error) {
+        console.error('Error fetching random advice:', error);
+        return 'Try Again Later or use other commands: /joke, /fact';
+    }
+};
+
+// Store the current trivia question and answer
+let currentTrivia: TriviaQuestion | null = null;
+
+// Function to simulate bot response
+const simulateBotResponse = async (message: string) => {
+    const trimmedMessage = message.trim().toLowerCase();
+
+    if (trimmedMessage === '/fact') {
+        return await getRandomFact();
+    } else if (trimmedMessage === '/joke') {
+        return await getRandomJoke();
+    } else if (trimmedMessage === '/advice') {
+        return await getRandomAdvice();
+    } else if (trimmedMessage.includes('bot') || trimmedMessage.includes('help')) {
+        return "You can use the /joke, /fact, and /advice commands for interesting jokes, fact, and advice!";
+    }
+
+    return '';
+};
+
+
+
+ 
 
   // Group messages by date
   const groupedMessages = messages.reduce((acc, message) => {
