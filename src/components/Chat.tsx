@@ -231,13 +231,42 @@ const Chat: React.FC = () => {
   // Function to simulate bot response
   const simulateBotResponse = (message: string) => {
     const trimmedMessage = message.trim().toLowerCase();
-    if (trimmedMessage === 'hi' || trimmedMessage === 'hi?' || trimmedMessage === 'hi!') {
-      return "Your hi is cute, but I'm a bot.";
-    } else if (trimmedMessage === 'Hello' || trimmedMessage === 'helo') {
-      return "Hey, how's it going, but I'm a bot.";
+    const greetings = ['hi', 'hello', 'hey', 'heya'];
+    const gratitudePhrases = ['thank you', 'thanks', 'thank'];
+    const farewellPhrases = ['bye', 'goodbye', 'see you', 'farewell'];
+    const helpPhrases = ['help', 'assist', 'support'];
+    const jokeTriggers = ['joke', 'funny', 'humor'];
+    const laughExpressions = ['lol', 'haha', 'hehe', '😂'];
+    
+    if (greetings.includes(trimmedMessage)) {
+        return "Greetings! How can I assist you today?";
+    } else if (trimmedMessage.includes('how are you') || trimmedMessage.includes('how r u')) {
+        return "I'm functioning optimally in my digital realm. How may I help you?";
+    } else if (trimmedMessage.includes('what can you do') || trimmedMessage.includes('capabilities')) {
+        return "I possess a wide range of capabilities, from answering queries to assisting in tasks. Feel free to ask me anything!";
+    } else if (gratitudePhrases.some(phrase => trimmedMessage.includes(phrase))) {
+        return "You're welcome! How else may I assist you?";
+    } else if (farewellPhrases.some(phrase => trimmedMessage.includes(phrase))) {
+        return "Farewell for now! Should you require any more assistance, feel free to reach out.";
+    } else if (helpPhrases.some(phrase => trimmedMessage.includes(phrase))) {
+        return "I'm here to help! Just let me know what you need.";
+    } else if (trimmedMessage.includes('nice to meet you')) {
+        return "Likewise! How can I make your acquaintance even better?";
+    } else if (trimmedMessage.includes('interesting')) {
+        return "I'm glad you find it interesting! Is there anything specific you'd like to explore?";
+    } else if (trimmedMessage.includes('tell me about yourself') || trimmedMessage.includes('introduce yourself')) {
+        return "I'm a digital assistant designed to provide information and assistance. How can I assist you today?";
+    } else if (trimmedMessage.includes('who created you') || trimmedMessage.includes('your creator')) {
+        return "I was created by a team of developers who wanted to bring helpful technology into the world!";
+    } else if (jokeTriggers.some(trigger => trimmedMessage.includes(trigger))) {
+        return "Sure, here's one: Why don't scientists trust atoms? Because they make up everything!";
+    } else if (laughExpressions.some(expression => trimmedMessage.includes(expression))) {
+        return "Laughter is always welcome here. What else is on your mind?";
     }
-    return ''; // Return empty string for other messages
-  };
+    
+    return "I'm sorry, but I may not understand your request. Could you please rephrase?";
+};
+
 
   // Group messages by date
   const groupedMessages = messages.reduce((acc, message) => {
