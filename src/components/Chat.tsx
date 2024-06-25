@@ -140,7 +140,7 @@ const sendMessage = async () => {
     // Check if the message contains any valid emojis
     const hasValidEmoji = validEmojis.some(emoji => newMessage.includes(emoji));
     if (!hasValidEmoji) {
-      setShowInvalidEmojiModal(true);
+      setShowLanguageModal(true);
       return;
     }
 
