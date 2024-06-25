@@ -209,6 +209,7 @@ const Chat: React.FC = () => {
       await set(newMessageRef, newMessageData);
     } catch (error) {
       console.error('Error sending image:', error);
+      alert('Error sending image. Please try again.');
     }
   };
 
@@ -406,6 +407,9 @@ const Chat: React.FC = () => {
                     };
                     reader.readAsDataURL(e.target.files[0]);
                   }
+                  else {
+                    alert('No file selected. Please select an image.');
+                  }
                 }}
                 className="hidden"
                 id="imageInput"
@@ -453,27 +457,29 @@ const Chat: React.FC = () => {
             </div>
             {/* Emoji menu */}
             {showEmojiMenu && showEmojiMenuPosition && (
-              <div
-                className="fixed z-10 bg-white border rounded-lg shadow-lg p-2 animate__animated animate__fadeIn"
-                style={{
-                  top: showEmojiMenuPosition.top - 20, // Adjust positioning for better appearance
-                  left: showEmojiMenuPosition.left,
-                  marginBottom: '2rem', // Increase gap from the bottom
-                }}
-              >
-                <div className="grid grid-cols-7 gap-2">
-                  {['😊', '😂', '😍', '🔥', '❤️', '🎉', '👍'].map((emoji) => (
-                    <button
-                      key={emoji}
-                      onClick={() => handleEmojiClick(emoji)}
-                      className="p-3 hover:bg-gray-200 rounded-lg text-xl"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+  <div
+    className="fixed z-10 bg-[#fff6a5] border border-gray-300 rounded-lg shadow-lg p-2 animate__animated animate__fadeIn animate__faster"
+    style={{
+      top: showEmojiMenuPosition.top - 20, // Adjust positioning for better appearance
+      left: showEmojiMenuPosition.left,
+      marginBottom: '2rem', // Increase gap from the bottom
+    }}
+  >
+    <div className="grid grid-cols-7 gap-2">
+      {['😊', '😂', '😍', '🔥', '❤️', '🎉', '👍'].map((emoji) => (
+        <button
+          key={emoji}
+          onClick={() => handleEmojiClick(emoji)}
+          className="p-3 rounded-lg text-xl transition-transform transform hover:scale-110 hover:bg-[#ff8985]"
+        >
+          {emoji}
+        </button>
+      ))}
+    </div>
+  </div>
+)}
+
+
 
             {/* Profanity modal */}
             {showProfanityModal && (
