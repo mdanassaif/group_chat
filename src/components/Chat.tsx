@@ -9,7 +9,11 @@ import Modal from './modalbox';
 import EmojiSVG from '../../public/emoji.svg';
 import PhotoSVG from '../../public/photo.svg';
 import axios from 'axios';
- 
+import Filter from 'bad-words';
+const filter = new Filter();
+
+
+
 
 
 interface Message {
@@ -38,6 +42,9 @@ const Chat: React.FC = () => {
   const [isBoldActive, setIsBoldActive] = useState(false);
   const [isItalicActive, setIsItalicActive] = useState(false);
   const [isUnderlineActive, setIsUnderlineActive] = useState(false);
+  const [showProfanityModal, setShowProfanityModal] = useState(false);
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
+
 
   // Refs
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -99,6 +106,19 @@ const Chat: React.FC = () => {
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
 
+    // Check if the new message contains non-English characters
+    const containsNonEnglish = /[^\x00-\x7F]+/.test(newMessage);
+    if (containsNonEnglish) {
+      setShowLanguageModal(true);
+      return;
+    }
+
+    if (filter.isProfane(newMessage)) {
+      // Show the profanity modal
+      setShowProfanityModal(true);
+      return;
+    }
+
     const messagesRef = ref(database, 'messages');
     const newMessageRef = push(messagesRef);
     const backgroundColor = randomLightColor();
@@ -122,6 +142,7 @@ const Chat: React.FC = () => {
       console.error('Error sending message:', error);
     }
   };
+
 
   // Function to handle bot response
   const handleBotResponse = async (message: string) => {
@@ -453,6 +474,42 @@ const Chat: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* Profanity modal */}
+            {showProfanityModal && (
+              <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+                <div className="bg-white p-4 rounded-lg">
+                  <p className="text-lg font-bold mb-2">Warning: Profanity Detected</p>
+                  <p className="mb-4">Please avoid using profanity.</p>
+                  <button
+                    className="px-4 py-2 bg-[#f26c6a] text-white rounded-lg hover:bg-[#e53935] focus:outline-none"
+                    onClick={() => setShowProfanityModal(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Modal for non-English language detection */}
+            {showLanguageModal && (
+              <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+                <div className="bg-white p-4 rounded-lg">
+                  <p className="text-lg font-bold mb-2">Unsupported Language</p>
+                  <p className="mb-4">Sorry, only English messages are allowed.</p>
+                  <button
+                    className="px-4 py-2 bg-[#f26c6a] text-white rounded-lg hover:bg-[#e53935] focus:outline-none"
+                    onClick={() => setShowLanguageModal(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
+
+
+
+
           </div>
         </div>
       ) : (
@@ -485,7 +542,8 @@ const Chat: React.FC = () => {
         </div>
       )}
     </div>
-  );
+  )
+
 };
 
 export default Chat;

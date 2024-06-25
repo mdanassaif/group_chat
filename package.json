@@ -11,15 +11,18 @@
   "dependencies": {
     "@multiavatar/multiavatar": "^1.0.7",
     "axios": "^1.7.2",
+    "bad-words": "^3.0.4",
     "firebase": "^10.12.2",
     "gravatar": "^1.8.2",
     "md5": "^2.3.0",
     "next": "14.2.4",
     "react": "^18",
     "react-dom": "^18",
+    "react-giphy-searchbox": "^1.5.4",
     "uuid": "^10.0.0"
   },
   "devDependencies": {
+    "@types/bad-words": "^3.0.3",
     "@types/gravatar": "^1.8.6",
     "@types/node": "^20",
     "@types/react": "^18",
