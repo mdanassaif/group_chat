@@ -8,7 +8,9 @@ import multiavatar from '@multiavatar/multiavatar';
 import Modal from './modalbox';
 import EmojiSVG from '../../public/emoji.svg';
 import PhotoSVG from '../../public/photo.svg';
-const axios = require('axios');
+import axios from 'axios';
+ 
+
 
 interface Message {
   id: string;
@@ -121,29 +123,29 @@ const Chat: React.FC = () => {
     }
   };
 
-// Function to handle bot response
-const handleBotResponse = async (message: string) => {
-  const botResponse = await simulateBotResponse(message);
-  if (botResponse !== '') {
-    const messagesRef = ref(database, 'messages');
-    const newMessageRef = push(messagesRef);
-    const botMessage: Message = {
-      id: uuidv4(),
-      text: botResponse,
-      timestamp: Date.now(),
-      user: 'Bot', // Set the bot's username or identifier
-      avatarUrl: '/bot-avatar-url.png', // Replace with actual bot avatar URL
-      backgroundColor: '#ecc1ff',
-      textColor: '#000000',
-    };
+  // Function to handle bot response
+  const handleBotResponse = async (message: string) => {
+    const botResponse = await simulateBotResponse(message);
+    if (botResponse !== '') {
+      const messagesRef = ref(database, 'messages');
+      const newMessageRef = push(messagesRef);
+      const botMessage: Message = {
+        id: uuidv4(),
+        text: botResponse,
+        timestamp: Date.now(),
+        user: 'NextJS BOT', // Set the bot's username or identifier
+        avatarUrl: '/Bot-avatar-url.jpg', // Replace with actual bot avatar URL
+        backgroundColor: '#ffffff',
+        textColor: 'rgb(255, 0, 0)',
+      };
 
-    try {
-      await set(newMessageRef, botMessage);
-    } catch (error) {
-      console.error('Error sending bot message:', error);
+      try {
+        await set(newMessageRef, botMessage);
+      } catch (error) {
+        console.error('Error sending bot message:', error);
+      }
     }
-  }
-};
+  };
 
 
   // Function to apply message formatting
@@ -225,74 +227,74 @@ const handleBotResponse = async (message: string) => {
     }
   };
 
-    // Function to generate random light color
-    const randomLightColor = () => {
-      return '#b7ebf2';
-    };
+  // Function to generate random light color
+  const randomLightColor = () => {
+    return '#b7ebf2';
+  };
 
- const getRandomFact = async () => {
+  const getRandomFact = async () => {
     try {
-        const response = await axios.get('https://api.chucknorris.io/jokes/random');
-        return response.data.value;
+      const response = await axios.get('https://api.chucknorris.io/jokes/random');
+      return response.data.value;
     } catch (error) {
-        console.error('Error fetching random fact:', error);
-        return 'Try Again Later or use other commands: /advice, /joke';
+      console.error('Error fetching random fact:', error);
+      return 'Try Again Later or use other commands: /advice, /joke';
     }
-};
+  };
 
-const getRandomJoke = async () => {
+  const getRandomJoke = async () => {
     try {
-        const response = await axios.get('https://icanhazdadjoke.com/', {
-            headers: { 'Accept': 'application/json' }
-        });
-        return response.data.joke;
+      const response = await axios.get('https://icanhazdadjoke.com/', {
+        headers: { 'Accept': 'application/json' }
+      });
+      return response.data.joke;
     } catch (error) {
-        console.error('Error fetching random joke:', error);
-        return 'Try Again Later or use other commands: /advice, /fact';
+      console.error('Error fetching random joke:', error);
+      return 'Try Again Later or use other commands: /advice, /fact';
     }
-};
+  };
 
 
-interface TriviaQuestion {
+  interface TriviaQuestion {
     question: string;
     answer: string;
-}
+  }
 
- 
 
-const getRandomAdvice = async () => {
+
+  const getRandomAdvice = async () => {
     try {
-        const response = await axios.get('https://api.adviceslip.com/advice');
-        return response.data.slip.advice;
+      const response = await axios.get('https://api.adviceslip.com/advice');
+      return response.data.slip.advice;
     } catch (error) {
-        console.error('Error fetching random advice:', error);
-        return 'Try Again Later or use other commands: /joke, /fact';
+      console.error('Error fetching random advice:', error);
+      return 'Try Again Later or use other commands: /joke, /fact';
     }
-};
+  };
 
-// Store the current trivia question and answer
-let currentTrivia: TriviaQuestion | null = null;
+  // Store the current trivia question and answer
+  let currentTrivia: TriviaQuestion | null = null;
 
-// Function to simulate bot response
-const simulateBotResponse = async (message: string) => {
+  // Function to simulate bot response
+  const simulateBotResponse = async (message: string) => {
     const trimmedMessage = message.trim().toLowerCase();
 
     if (trimmedMessage === '/fact') {
-        return await getRandomFact();
+      return await getRandomFact();
     } else if (trimmedMessage === '/joke') {
-        return await getRandomJoke();
+      return await getRandomJoke();
     } else if (trimmedMessage === '/advice') {
-        return await getRandomAdvice();
+      return await getRandomAdvice();
     } else if (trimmedMessage.includes('bot') || trimmedMessage.includes('help')) {
-        return "You can use the /joke, /fact, and /advice commands for interesting jokes, fact, and advice!";
+      return "You can use the /joke, /fact, and /advice commands for interesting jokes, fact, and advice!";
     }
 
     return '';
-};
+  };
 
 
 
- 
+
 
   // Group messages by date
   const groupedMessages = messages.reduce((acc, message) => {
@@ -438,8 +440,8 @@ const simulateBotResponse = async (message: string) => {
                   marginBottom: '2rem', // Increase gap from the bottom
                 }}
               >
-                <div className="grid grid-cols-8 gap-2">
-                  {['😊', '😂', '😍', '🔥', '❤️', '🎉', '👍', '😎'].map((emoji) => (
+                <div className="grid grid-cols-7 gap-2">
+                  {['😊', '😂', '😍', '🔥', '❤️', '🎉', '👍'].map((emoji) => (
                     <button
                       key={emoji}
                       onClick={() => handleEmojiClick(emoji)}
