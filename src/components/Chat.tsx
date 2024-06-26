@@ -45,6 +45,8 @@ const Chat: React.FC = () => {
   const [showProfanityModal, setShowProfanityModal] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showLive, setShowLive] = useState(false);
+  const [lastSentMessage, setLastSentMessage] = useState<string>('');
+  const [lastSentTime, setLastSentTime] = useState<number>(0);
 
 
   // Refs
@@ -118,6 +120,23 @@ const Chat: React.FC = () => {
 
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
+
+    // Check if the current message is the same as the last sent message
+  if (newMessage.trim() === lastSentMessage.trim()) {
+    const currentTime = Date.now();
+    const cooldownTime = 15000; // 15 seconds in milliseconds
+
+    // Check if enough time has passed since the last message
+    if (currentTime - lastSentTime < cooldownTime) {
+      console.log(`Please wait ${Math.ceil((cooldownTime - (currentTime - lastSentTime)) / 1000)} seconds before sending the same message again.`);
+      return;
+    }
+  }
+
+  // Update the last sent message and time
+  setLastSentMessage(newMessage);
+  setLastSentTime(Date.now());
+
 
     // Check if the message contains any of the allowed emojis
     const containsAllowedEmoji = allowedEmojis.some(emoji => newMessage.includes(emoji));
