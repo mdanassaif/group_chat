@@ -1,10 +1,11 @@
 import Image from 'next/image';
 import React from 'react';
+import ChatInGroup from '../../public/chatingroupphoto.jpg'
 
 const Modal = ({ onClose }: { onClose: () => void }) => {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-50 z-50">
-      <div className="bg-white w-96 p-4 rounded-lg shadow-lg">
+      <div className="bg-white w-full max-w-md p-6 rounded-lg shadow-lg">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-bold">About This Chat Group</h2>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700 focus:outline-none">
@@ -14,17 +15,19 @@ const Modal = ({ onClose }: { onClose: () => void }) => {
           </button>
         </div>
         <div className="text-sm text-gray-700">
-          <Image src="https://pixabay.com/get/gd8c9817be2c3e83ab723c5605b8d17910ddcc17c1a12ee6506da8f104d7fde62a0378e1b22b988e742af796ba21d75aff1477b6e320334aa53d2bdabb8d690f5_1280.jpg" alt="App Image" width={100} height={100} className="w-full h-auto rounded-lg mb-4" />
-          <p>This is a live group chat application built with Next.js, Firebase, Tailwind CSS, IconBuddy, Multiavatar, Culrs, and Vercel.</p>
-          <br />
-          <p>Users can send messages, share photos, use emojis, and enjoy random avatars generated based on their usernames.</p>
-          <br />
-          <p>Let's support this group chat by inviting your friends and SoloLearners to join the gossip.</p>
-          <br />
-          <p>Meet our friendly <b>Bot</b> that fetches jokes, facts, and advice to keep chats lively. </p>
-          <br/>
-          <p> Type 'Help' or 'Bot' for commands info.</p>
-      
+          <Image src={ChatInGroup} alt="App Image" width={100} height={100} className="w-full h-auto rounded-lg mb-4" />
+          <p>Welcome to the live group chat built with <strong>Next.js</strong>, <strong>Firebase</strong>, <strong>Tailwind CSS</strong>, <strong>IconBuddy</strong>, <strong>Multiavatar</strong>, <strong>Culrs</strong>, and <strong>Vercel</strong>.</p>
+          <p className="mt-4"><strong>Users can:</strong></p>
+          <ul className="list-disc list-inside pl-4 mt-2">
+            <li>Send messages</li>
+            <li>Share photos</li>
+            <li>Use emojis</li>
+            <li>Enjoy random avatars based on their usernames</li>
+            <li>Use Bot commands</li>
+          </ul>
+          <p className="mt-4"><strong>Invite friends and SoloLearners</strong> to join the chat!</p>
+          <p className="mt-4">Meet our friendly <strong>Bot</strong> that fetches jokes, facts, and advice to keep chats lively.</p>
+          <p className="mt-4">Type <strong>'Help'</strong> or <strong>'Bot'</strong> for commands info.</p>
         </div>
       </div>
     </div>

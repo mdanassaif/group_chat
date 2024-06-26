@@ -44,6 +44,7 @@ const Chat: React.FC = () => {
   const [isUnderlineActive, setIsUnderlineActive] = useState(false);
   const [showProfanityModal, setShowProfanityModal] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
+  const [showLive, setShowLive] = useState(false);
 
 
   // Refs
@@ -84,6 +85,17 @@ const Chat: React.FC = () => {
       off(messagesRef, 'value', handleNewMessage);
     };
   }, [isUsernameSet]);
+
+  useEffect(() => {
+    // Show the "Live" word after 2 seconds
+    const timer = setTimeout(() => {
+      setShowLive(true);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+
 
   // Effect to scroll to bottom on new messages
   useEffect(() => {
@@ -525,8 +537,16 @@ const Chat: React.FC = () => {
       ) : (
         // Username input section
         <div className="flex flex-col items-center justify-center h-full p-4 bg-gradient-to-r from-[#f86b698e] to-[#e8f0a49b]">
-          <h1 className="text-3xl font-bold mb-2 text-[#4b6062] animate-fadeIn">Join the Live Chat</h1>
-          <p className="text-md text-[#0f456f] mb-4 animate-fadeIn">Gossip joyfully and openly with people</p>
+          <h1 className="text-4xl lg:text-5xl font-bold mb-2 text-[#6e0808] animate-fadeIn">
+            Join the
+            <span className="ml-1 mr-1"></span>
+            {showLive && (
+              <span className="inline-block animate-flyIn"> Live </span>
+            )}
+            <span></span> Chat
+          </h1>
+
+          <p className="text-md text-[#ce0202e0] mb-4 animate-fadeIn">Gossip joyfully and openly with people</p>
           <input
             type="text"
             value={username}
