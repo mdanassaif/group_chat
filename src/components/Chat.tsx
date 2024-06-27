@@ -132,7 +132,7 @@ const Chat: React.FC = () => {
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
 
-    const wordCount = newMessage.trim().split(/\s+/).length;
+    const wordCount = newMessage.trim().split(/\s+/).filter(word => word.length > 0).length;
     if (wordCount > 30) {
       // Show the word limit modal
       setShowWordLimitModal(true);
