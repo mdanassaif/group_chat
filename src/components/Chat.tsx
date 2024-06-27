@@ -132,9 +132,8 @@ const Chat: React.FC = () => {
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
 
-    const wordCount = newMessage.trim().split(/\s+/).filter(word => word.length > 0).length;
-    if (wordCount > 30) {
-      // Show the word limit modal
+    if (newMessage.trim().length > 70) {
+      // Show the word limit modal or handle accordingly
       setShowWordLimitModal(true);
       return;
     }
@@ -569,8 +568,8 @@ const Chat: React.FC = () => {
             {showWordLimitModal && (
               <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
                 <div className="bg-white p-4 rounded-lg">
-                  <p className="text-lg font-bold mb-2">30 words Limitation</p>
-                  <p className="mb-4">Your message exceeds the 30-word limit. Please shorten your message.</p>
+                  <p className="text-lg font-bold mb-2">30 CHARACTER LIMITS!</p>
+                  <p className="mb-4">Your message exceeds the 80-character limit. Please shorten your message.</p>
                   <button
                     className="px-4 py-2 bg-[#f26c6a] text-white rounded-lg hover:bg-[#e53935] focus:outline-none"
                     onClick={() => setShowWordLimitModal(false)}
