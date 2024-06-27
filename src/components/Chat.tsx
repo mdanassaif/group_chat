@@ -53,6 +53,16 @@ const Chat: React.FC = () => {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
 
+  const escapeHTML = (text: string) => {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
+  
+
   // Helper function to format date
   const formatDate = (timestamp: number) => {
     const messageDate = new Date(timestamp);
@@ -158,8 +168,8 @@ const Chat: React.FC = () => {
     const backgroundColor = randomLightColor();
     const newMessageData = {
       id: uuidv4(),
-      text: newMessage,
-      formattedText: applyMessageFormatting(newMessage),
+      text: escapeHTML(newMessage),
+      formattedText: applyMessageFormatting(escapeHTML(newMessage)),
       timestamp: Date.now(),
       user: username,
       avatarUrl: avatarUrl,
@@ -450,7 +460,7 @@ const Chat: React.FC = () => {
                 id="imageInput"
               />
               <label htmlFor="imageInput" className="mr-3 p-2 cursor-pointer focus:outline-none">
-                <Image src={PhotoSVG} alt="Photo" width={24} height={24} />
+                <Image src={PhotoSVG} alt="Photo" width={24} height={24}/>
               </label>
               {/* Formatting buttons */}
               <button
