@@ -47,6 +47,7 @@ const Chat: React.FC = () => {
   const [showLive, setShowLive] = useState(false);
   const [lastSentMessage, setLastSentMessage] = useState<string>('');
   const [lastSentTime, setLastSentTime] = useState<number>(0);
+  const [showWordLimitModal, setShowWordLimitModal] = useState<boolean>(false); // State for word limit modal
 
 
   // Refs
@@ -61,7 +62,7 @@ const Chat: React.FC = () => {
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
   };
-  
+
 
   // Helper function to format date
   const formatDate = (timestamp: number) => {
@@ -131,21 +132,28 @@ const Chat: React.FC = () => {
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
 
-    // Check if the current message is the same as the last sent message
-  if (newMessage.trim() === lastSentMessage.trim()) {
-    const currentTime = Date.now();
-    const cooldownTime = 15000; // 15 seconds in milliseconds
-
-    // Check if enough time has passed since the last message
-    if (currentTime - lastSentTime < cooldownTime) {
-      console.log(`Please wait ${Math.ceil((cooldownTime - (currentTime - lastSentTime)) / 1000)} seconds before sending the same message again.`);
+    const wordCount = newMessage.trim().split(/\s+/).length;
+    if (wordCount > 30) {
+      // Show the word limit modal
+      setShowWordLimitModal(true);
       return;
     }
-  }
 
-  // Update the last sent message and time
-  setLastSentMessage(newMessage);
-  setLastSentTime(Date.now());
+    // Check if the current message is the same as the last sent message
+    if (newMessage.trim() === lastSentMessage.trim()) {
+      const currentTime = Date.now();
+      const cooldownTime = 15000; // 15 seconds in milliseconds
+
+      // Check if enough time has passed since the last message
+      if (currentTime - lastSentTime < cooldownTime) {
+        console.log(`Please wait ${Math.ceil((cooldownTime - (currentTime - lastSentTime)) / 1000)} seconds before sending the same message again.`);
+        return;
+      }
+    }
+
+    // Update the last sent message and time
+    setLastSentMessage(newMessage);
+    setLastSentTime(Date.now());
 
 
     // Check if the message contains any of the allowed emojis
@@ -460,7 +468,7 @@ const Chat: React.FC = () => {
                 id="imageInput"
               />
               <label htmlFor="imageInput" className="mr-3 p-2 cursor-pointer focus:outline-none">
-                <Image src={PhotoSVG} alt="Photo" width={24} height={24}/>
+                <Image src={PhotoSVG} alt="Photo" width={24} height={24} />
               </label>
               {/* Formatting buttons */}
               <button
@@ -557,6 +565,24 @@ const Chat: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {showWordLimitModal && (
+              <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+                <div className="bg-white p-4 rounded-lg">
+                  <p className="text-lg font-bold mb-2">30 words Limitation</p>
+                  <p className="mb-4">Your message exceeds the 30-word limit. Please shorten your message.</p>
+                  <button
+                    className="px-4 py-2 bg-[#f26c6a] text-white rounded-lg hover:bg-[#e53935] focus:outline-none"
+                    onClick={() => setShowWordLimitModal(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
+
+
+
 
 
 
