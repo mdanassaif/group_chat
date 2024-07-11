@@ -7,7 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import multiavatar from '@multiavatar/multiavatar';
 import Modal from './modalbox';
 import EmojiSVG from '../../public/emoji.svg';
-import PhotoSVG from '../../public/photo.svg';
+// import PhotoSVG from '../../public/photo.svg';
 import axios from 'axios';
 import Filter from 'bad-words';
 const filter = new Filter();
@@ -244,26 +244,26 @@ const Chat: React.FC = () => {
   };
 
   // Function to send image
-  const sendImage = async (imageUrl: string) => {
-    const messagesRef = ref(database, 'messages');
-    const newMessageRef = push(messagesRef);
-    const newMessageData: Message = {
-      id: uuidv4(),
-      timestamp: Date.now(),
-      user: username,
-      imageUrl,
-      avatarUrl: avatarUrl,
-      backgroundColor: randomLightColor(),
-      textColor: '#000000',
-    };
+  // const sendImage = async (imageUrl: string) => {
+  //   const messagesRef = ref(database, 'messages');
+  //   const newMessageRef = push(messagesRef);
+  //   const newMessageData: Message = {
+  //     id: uuidv4(),
+  //     timestamp: Date.now(),
+  //     user: username,
+  //     imageUrl,
+  //     avatarUrl: avatarUrl,
+  //     backgroundColor: randomLightColor(),
+  //     textColor: '#000000',
+  //   };
 
-    try {
-      await set(newMessageRef, newMessageData);
-    } catch (error) {
-      console.error('Error sending image:', error);
-      alert('Error sending image. Please try again.');
-    }
-  };
+  //   try {
+  //     await set(newMessageRef, newMessageData);
+  //   } catch (error) {
+  //     console.error('Error sending image:', error);
+  //     alert('Error sending image. Please try again.');
+  //   }
+  // };
 
   // Handler for emoji click
   const handleEmojiClick = (emoji: string) => {
@@ -425,11 +425,11 @@ const Chat: React.FC = () => {
                           style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
                           dangerouslySetInnerHTML={{ __html: message.formattedText || message.text || '' }}
                         />
-                        {message.imageUrl && (
+                        {/* {message.imageUrl && (
                           <div className="mt-2">
                             <Image src={message.imageUrl} alt="Sent Image" width={200} height={200} className="rounded-lg" />
                           </div>
-                        )}
+                        )} */}
                       </div>
                     </div>
                   );
@@ -445,7 +445,7 @@ const Chat: React.FC = () => {
               <button onClick={toggleEmojiMenu} ref={emojiButtonRef} className="mr-3 p-2 focus:outline-none">
                 <Image src={EmojiSVG} alt="Emoji" width={24} height={24} />
               </button>
-              {/* Photo upload button */}
+              {/* Photo upload button 
               <input
                 type="file"
                 accept="image/*"
@@ -465,10 +465,10 @@ const Chat: React.FC = () => {
                 }}
                 className="hidden"
                 id="imageInput"
-              />
-              <label htmlFor="imageInput" className="mr-3 p-2 cursor-pointer focus:outline-none">
+              />*/}
+              {/* <label htmlFor="imageInput" className="mr-3 p-2 cursor-pointer focus:outline-none">
                 <Image src={PhotoSVG} alt="Photo" width={24} height={24} />
-              </label>
+              </label> */}
               {/* Formatting buttons */}
               <button
                 onClick={() => setIsBoldActive((prevState) => !prevState)}
