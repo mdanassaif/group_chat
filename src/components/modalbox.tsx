@@ -28,6 +28,7 @@ const Modal = ({ onClose }: { onClose: () => void }) => {
           <p className="mt-4"><strong>Invite friends and SoloLearners</strong> to join the chat!</p>
           <p className="mt-4">Meet our friendly <strong>Bot</strong> that fetches jokes, facts, and advice to keep chats lively.</p>
           <p className="mt-4">Type <strong>'Help'</strong> or <strong>'Bot'</strong> for commands info.</p>
+          <p className="mt-4">Source code: <a href="https://github.com/Nextjswebdev/group_chat" className="text-blue-500 underline">Github link</a></p>
         </div>
       </div>
     </div>

@@ -110,12 +110,12 @@ const Chat: React.FC = () => {
 
 
 
-  // Effect to scroll to bottom on new messages
+  //scrolling effect bottom on new messages
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  // Function to scroll to bottom of messages
+  // scroll to bottom of messages
   const scrollToBottom = () => {
     if (messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
@@ -133,39 +133,38 @@ const Chat: React.FC = () => {
     if (!newMessage.trim()) return;
 
     if (newMessage.trim().length > 70) {
-      // Show the word limit modal or handle accordingly
+      // word limit in chat msg
       setShowWordLimitModal(true);
       return;
     }
 
-    // Check if the current message is the same as the last sent message
+    // pretend spam if last message = current message so show message after 15 sec
     if (newMessage.trim() === lastSentMessage.trim()) {
       const currentTime = Date.now();
-      const cooldownTime = 15000; // 15 seconds in milliseconds
+      const cooldownTime = 15000;  
 
-      // Check if enough time has passed since the last message
       if (currentTime - lastSentTime < cooldownTime) {
         console.log(`Please wait ${Math.ceil((cooldownTime - (currentTime - lastSentTime)) / 1000)} seconds before sending the same message again.`);
         return;
       }
     }
 
-    // Update the last sent message and time
+    // message with updated time
     setLastSentMessage(newMessage);
     setLastSentTime(Date.now());
 
 
-    // Check if the message contains any of the allowed emojis
+    // allowed emojis
     const containsAllowedEmoji = allowedEmojis.some(emoji => newMessage.includes(emoji));
-    const containsEnglishText = /[a-zA-Z]/.test(newMessage); // Check if message contains English text
+    const containsEnglishText = /[a-zA-Z]/.test(newMessage);
 
     if (!containsAllowedEmoji && !containsEnglishText) {
-      setShowLanguageModal(true); // Show modal for non-allowed content
+      setShowLanguageModal(true); // non-allowed stuffs
       return;
     }
 
     if (filter.isProfane(newMessage)) {
-      // Show the profanity modal
+      // profanity alert modal
       setShowProfanityModal(true);
       return;
     }
@@ -188,7 +187,7 @@ const Chat: React.FC = () => {
       await set(newMessageRef, newMessageData);
       setNewMessage('');
       resetFormatting();
-      handleBotResponse(newMessage); // Call function to handle bot response
+      handleBotResponse(newMessage); // bot calling
     } catch (error) {
       console.error('Error sending message:', error);
     }
@@ -196,7 +195,7 @@ const Chat: React.FC = () => {
 
 
 
-  // Function to handle bot response
+  // Hhandler for  bot response
   const handleBotResponse = async (message: string) => {
     const botResponse = await simulateBotResponse(message);
     if (botResponse !== '') {
@@ -221,7 +220,7 @@ const Chat: React.FC = () => {
   };
 
 
-  // Function to apply message formatting
+  // Function to apply formatting in msgs
   const applyMessageFormatting = (text: string) => {
     let formattedText = text;
     if (isBoldActive) {
@@ -265,7 +264,7 @@ const Chat: React.FC = () => {
   //   }
   // };
 
-  // Handler for emoji click
+  // Handler for emoji 
   const handleEmojiClick = (emoji: string) => {
     setNewMessage((prevMessage) => prevMessage + emoji);
     setShowEmojiMenu(false);
@@ -280,7 +279,7 @@ const Chat: React.FC = () => {
     }
   };
 
-  // Handler for key down events
+  // Handler for key down events : for sending message on enter
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       sendMessage();
@@ -296,7 +295,6 @@ const Chat: React.FC = () => {
       setAvatarUrl(avatarUrl);
       setIsUsernameSet(true);
 
-      // Clear messages on username change (optional)
       setMessages([]);
     }
   };
@@ -346,10 +344,8 @@ const Chat: React.FC = () => {
     }
   };
 
-  // Store the current trivia question and answer
-  let currentTrivia: TriviaQuestion | null = null;
 
-  // Function to simulate bot response
+  // Simulate bot response
   const simulateBotResponse = async (message: string) => {
     const trimmedMessage = message.trim().toLowerCase();
 
@@ -365,9 +361,6 @@ const Chat: React.FC = () => {
 
     return '';
   };
-
-
-
 
 
   // Group messages by date
@@ -437,9 +430,8 @@ const Chat: React.FC = () => {
               </div>
             ))}
           </div>
-          {/* Input area for new messages */}
+          {/* Input for new messages */}
           <div className="bg-white p-4" style={{ height: '15%' }}>
-            {/* Emoji, Photo, Formatting buttons */}
             <div className="flex items-center mb-2">
               {/* Emoji button */}
               <button onClick={toggleEmojiMenu} ref={emojiButtonRef} className="mr-3 p-2 focus:outline-none">
@@ -489,7 +481,7 @@ const Chat: React.FC = () => {
                 Underline
               </button>
             </div>
-            {/* Message input and send button */}
+            {/* message input and send button */}
             <div className="flex">
               <input
                 type="text"
@@ -512,9 +504,9 @@ const Chat: React.FC = () => {
               <div
                 className="fixed z-10 bg-[#fff6a5] border border-gray-300 rounded-lg shadow-lg p-2 animate__animated animate__fadeIn animate__faster"
                 style={{
-                  top: showEmojiMenuPosition.top - 20, // Adjust positioning for better appearance
+                  top: showEmojiMenuPosition.top - 20,  
                   left: showEmojiMenuPosition.left,
-                  marginBottom: '2rem', // Increase gap from the bottom
+                  marginBottom: '2rem',  
                 }}
               >
                 <div className="grid grid-cols-7 gap-2">
@@ -582,7 +574,7 @@ const Chat: React.FC = () => {
           </div>
         </div>
       ) : (
-        // Username input section
+        // Username input 
         <div className="flex flex-col items-center justify-center h-full p-4 bg-gradient-to-r from-[#f86b698e] to-[#e8f0a49b]">
           <h1 className="text-4xl lg:text-5xl font-bold mb-2 text-[#6e0808] animate-fadeIn">
             Join the
