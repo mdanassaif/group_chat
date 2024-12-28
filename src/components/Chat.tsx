@@ -2,43 +2,164 @@
 import React, { useEffect, useState, ChangeEvent, useRef } from 'react';
 import Image from 'next/image';
 import { database } from '../firebase';
-import { ref, onValue, push, set, off } from 'firebase/database';
+import { ref, onValue, push, set, off, get } from 'firebase/database';
 import { v4 as uuidv4 } from 'uuid';
 import multiavatar from '@multiavatar/multiavatar';
 import Modal from './modalbox';
 import EmojiSVG from '../../public/emoji.svg';
-// import PhotoSVG from '../../public/photo.svg';
+import PhotoSVG from '../../public/photo.svg';
 import axios from 'axios';
 import Filter from 'bad-words';
 const filter = new Filter();
+import { Message, TypingUser, OnlineUser, Group, ChatState, CreateGroupModalProps } from '../types/ChatInterface';
+
+
+// Modal component for joining chat groups
+const JoinGroupModal: React.FC<{
+  isOpen: boolean;
+  group: Group | null;
+  onClose: () => void;
+  onJoin: () => void;
+}> = ({ isOpen, group, onClose, onJoin }) => {
+  const [accepted, setAccepted] = useState(false);
+
+  if (!isOpen || !group) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="bg-white rounded-lg p-6 w-96 max-w-[90%] shadow-xl">
+        <h2 className="text-2xl font-bold mb-4 text-gray-800">Join {group.name}</h2>
+        <div className="mb-4">
+          <p className="text-gray-600 mb-4">{group.description}</p>
+          <h3 className="font-bold mb-2">Group Rules:</h3>
+          <ul className="list-disc pl-5 mb-4 text-gray-600">
+            <li>Be respectful to all members</li>
+            <li>No spam or inappropriate content</li>
+            <li>Stay on topic with group discussions</li>
+            <li>Follow the chat's general guidelines</li>
+          </ul>
+          <label className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={accepted}
+              onChange={(e) => setAccepted(e.target.checked)}
+              className="form-checkbox text-[#f26c6a]"
+            />
+            <span className="text-sm text-gray-700">
+              I agree to follow the group rules
+            </span>
+          </label>
+        </div>
+        <div className="flex justify-end space-x-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onJoin}
+            disabled={!accepted}
+            className={`px-4 py-2 rounded-lg transition-colors ${accepted
+              ? 'bg-[#f26c6a] text-white hover:bg-[#e53935]'
+              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+          >
+            Join Group
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Modal component for creating new chat groups
+const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, onSubmit }) => {
+  const [groupName, setGroupName] = useState('');
+  const [groupDescription, setGroupDescription] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (groupName.trim()) {
+      onSubmit(groupName, groupDescription);
+      setGroupName('');
+      setGroupDescription('');
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="bg-white rounded-lg p-6 w-96 max-w-[90%] shadow-xl">
+        <h2 className="text-2xl font-bold mb-4 text-gray-800">Create New Group</h2>
+        <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <label className="block text-gray-700 text-sm font-bold mb-2">
+              Group Name*
+            </label>
+            <input
+              type="text"
+              value={groupName}
+              onChange={(e) => setGroupName(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#f26c6a]"
+              placeholder="Enter group name"
+              maxLength={30}
+              required
+            />
+          </div>
+          <div className="mb-4">
+            <label className="block text-gray-700 text-sm font-bold mb-2">
+              Description
+            </label>
+            <textarea
+              value={groupDescription}
+              onChange={(e) => setGroupDescription(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#f26c6a]"
+              placeholder="Enter group description"
+              maxLength={100}
+              rows={3}
+            />
+          </div>
+          <div className="flex justify-end space-x-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-[#f26c6a] text-white rounded-lg hover:bg-[#e53935] transition-colors"
+            >
+              Create Group
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
 
 
 
-
-
-interface Message {
-  id: string;
-  text?: string;
-  formattedText?: string;
-  imageUrl?: string;
-  timestamp: number;
-  user: string;
-  avatarUrl: string;
-  backgroundColor?: string;
-  textColor?: string;
-}
-
-// Chat component
+// Main Chat component
 const Chat: React.FC = () => {
-  // State variables
+  // Core state management
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState<string>('');
   const [showEmojiMenu, setShowEmojiMenu] = useState(false);
   const [showEmojiMenuPosition, setShowEmojiMenuPosition] = useState<{ top: number; left: number } | null>(null);
-  const [username, setUsername] = useState<string>('');
+  const [username, setUsername] = useState<string>(() => {
+    // Initialize username from localStorage if available
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('chatUsername') || '';
+    }
+    return '';
+  });
   const [isUsernameSet, setIsUsernameSet] = useState<boolean>(false);
   const [avatarUrl, setAvatarUrl] = useState<string>('');
-  const [showModal, setShowModal] = useState(false);
   const [isBoldActive, setIsBoldActive] = useState(false);
   const [isItalicActive, setIsItalicActive] = useState(false);
   const [isUnderlineActive, setIsUnderlineActive] = useState(false);
@@ -47,12 +168,46 @@ const Chat: React.FC = () => {
   const [showLive, setShowLive] = useState(false);
   const [lastSentMessage, setLastSentMessage] = useState<string>('');
   const [lastSentTime, setLastSentTime] = useState<number>(0);
-  const [showWordLimitModal, setShowWordLimitModal] = useState<boolean>(false); // State for word limit modal
+  const [showWordLimitModal, setShowWordLimitModal] = useState<boolean>(false);
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  const [chatState, setChatState] = useState<ChatState>({
+    selectedGroupId: null,
+    groups: [],
+    showCreateGroup: false,
+    newGroupForm: {
+      name: '',
+      description: ''
+    }
+  });
+
+  const [joinModalGroup, setJoinModalGroup] = useState<Group | null>(null);
+
+  const handleGroupClick = (group: Group) => {
+    if (!group.members.includes(username)) {
+      setJoinModalGroup(group);
+    } else {
+      setChatState(prev => ({ ...prev, selectedGroupId: group.id }));
+    }
+  };
+
+  const handleJoinGroup = async () => {
+    if (joinModalGroup) {
+      await joinGroup(joinModalGroup.id);
+      setJoinModalGroup(null);
+    }
+  };
+
+  // Add typing state
+  const [isTyping, setIsTyping] = useState<boolean>(false);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
 
   // Refs
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
+
 
   const escapeHTML = (text: string) => {
     return text
@@ -63,6 +218,9 @@ const Chat: React.FC = () => {
       .replace(/'/g, '&#039;');
   };
 
+  const createAvatarUrl = (svg: string) => {
+    return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+  };
 
   // Helper function to format date
   const formatDate = (timestamp: number) => {
@@ -75,7 +233,49 @@ const Chat: React.FC = () => {
     });
   };
 
-  // Effect to fetch messages from database
+  // Track online users and typing status
+  useEffect(() => {
+    if (!isUsernameSet || !username) return;
+
+    const userPresenceRef = ref(database, `presence/${username}`);
+    const onlineUsersRef = ref(database, 'presence');
+
+    // Update user's online status every 30 seconds
+    const updatePresence = () => {
+      set(userPresenceRef, {
+        user: username,
+        lastActive: Date.now(),
+        avatarUrl: avatarUrl
+      });
+    };
+
+    // Initial presence update
+    updatePresence();
+
+    // Set up presence interval
+    const presenceInterval = setInterval(updatePresence, 30000);
+
+    // Listen for online users
+    onValue(onlineUsersRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const activeUsers = Object.values(data) as OnlineUser[];
+        // Filter out users who haven't been active in the last minute
+        const recentlyActiveUsers = activeUsers.filter(
+          user => Date.now() - user.lastActive < 60000
+        );
+        setOnlineUsers(recentlyActiveUsers);
+      }
+    });
+
+    // Cleanup
+    return () => {
+      clearInterval(presenceInterval);
+      set(userPresenceRef, null);
+    };
+  }, [isUsernameSet, username, avatarUrl]);
+
+  // Load messages from Firebase
   useEffect(() => {
     const messagesRef = ref(database, 'messages');
     let initialLoad = true;
@@ -129,19 +329,20 @@ const Chat: React.FC = () => {
 
   const allowedEmojis = ['😊', '😂', '😍', '🔥', '❤️', '🎉', '👍'];
 
+  // Message sending logic
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
 
+    // Validate message length and spam prevention
     if (newMessage.trim().length > 70) {
-      // word limit in chat msg
       setShowWordLimitModal(true);
       return;
     }
 
-    // pretend spam if last message = current message so show message after 15 sec
+    // Check for spam
     if (newMessage.trim() === lastSentMessage.trim()) {
       const currentTime = Date.now();
-      const cooldownTime = 15000;  
+      const cooldownTime = 15000;
 
       if (currentTime - lastSentTime < cooldownTime) {
         console.log(`Please wait ${Math.ceil((cooldownTime - (currentTime - lastSentTime)) / 1000)} seconds before sending the same message again.`);
@@ -149,22 +350,19 @@ const Chat: React.FC = () => {
       }
     }
 
-    // message with updated time
     setLastSentMessage(newMessage);
     setLastSentTime(Date.now());
 
-
-    // allowed emojis
+    // Check for allowed emojis and English text
     const containsAllowedEmoji = allowedEmojis.some(emoji => newMessage.includes(emoji));
     const containsEnglishText = /[a-zA-Z]/.test(newMessage);
 
     if (!containsAllowedEmoji && !containsEnglishText) {
-      setShowLanguageModal(true); // non-allowed stuffs
+      setShowLanguageModal(true);
       return;
     }
 
     if (filter.isProfane(newMessage)) {
-      // profanity alert modal
       setShowProfanityModal(true);
       return;
     }
@@ -172,6 +370,8 @@ const Chat: React.FC = () => {
     const messagesRef = ref(database, 'messages');
     const newMessageRef = push(messagesRef);
     const backgroundColor = randomLightColor();
+
+    // Use chatState.selectedGroupId instead of selectedGroup
     const newMessageData = {
       id: uuidv4(),
       text: escapeHTML(newMessage),
@@ -181,13 +381,18 @@ const Chat: React.FC = () => {
       avatarUrl: avatarUrl,
       backgroundColor: backgroundColor,
       textColor: '#000000',
+      groupId: chatState.selectedGroupId // Use the correct group ID from chatState
     };
 
     try {
       await set(newMessageRef, newMessageData);
       setNewMessage('');
       resetFormatting();
-      handleBotResponse(newMessage); // bot calling
+
+      // Only send bot response in global chat
+      if (!chatState.selectedGroupId) {
+        handleBotResponse(newMessage);
+      }
     } catch (error) {
       console.error('Error sending message:', error);
     }
@@ -243,26 +448,29 @@ const Chat: React.FC = () => {
   };
 
   // Function to send image
-  // const sendImage = async (imageUrl: string) => {
-  //   const messagesRef = ref(database, 'messages');
-  //   const newMessageRef = push(messagesRef);
-  //   const newMessageData: Message = {
-  //     id: uuidv4(),
-  //     timestamp: Date.now(),
-  //     user: username,
-  //     imageUrl,
-  //     avatarUrl: avatarUrl,
-  //     backgroundColor: randomLightColor(),
-  //     textColor: '#000000',
-  //   };
+  const sendImage = async (imageUrl: string) => {
+    const messagesRef = ref(database, 'messages');
+    const newMessageRef = push(messagesRef);
+    const newMessageData = {
+      id: uuidv4(),
+      text: escapeHTML(newMessage),
+      formattedText: applyMessageFormatting(escapeHTML(newMessage)),
+      timestamp: Date.now(),
+      user: username,
+      backgroundColor: randomLightColor(),
+      textColor: '#000000',
+      groupId: chatState.selectedGroupId
+    };
 
-  //   try {
-  //     await set(newMessageRef, newMessageData);
-  //   } catch (error) {
-  //     console.error('Error sending image:', error);
-  //     alert('Error sending image. Please try again.');
-  //   }
-  // };
+    try {
+      await set(newMessageRef, newMessageData);
+      setNewMessage('');
+      resetFormatting();
+      handleBotResponse(newMessage);
+    } catch (error) {
+      console.error('Error sending message:', error);
+    }
+  };
 
   // Handler for emoji 
   const handleEmojiClick = (emoji: string) => {
@@ -289,19 +497,26 @@ const Chat: React.FC = () => {
   // Function to handle username submission
   const handleUsernameSubmit = async () => {
     if (username.trim() !== '') {
-      // Simulating avatar fetch
+      // Store username in localStorage
+      localStorage.setItem('chatUsername', username.trim());
+
       const avatarSvg = multiavatar(username);
-      const avatarUrl = `data:image/svg+xml;utf8,${encodeURIComponent(avatarSvg)}`;
+      const avatarUrl = createAvatarUrl(avatarSvg);
       setAvatarUrl(avatarUrl);
       setIsUsernameSet(true);
-
       setMessages([]);
     }
   };
-
   // Function to generate random light color
   const randomLightColor = () => {
     return '#b7ebf2';
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('chatUsername');
+    setUsername('');
+    setIsUsernameSet(false);
+    setAvatarUrl('');
   };
 
   const getRandomFact = async () => {
@@ -327,10 +542,6 @@ const Chat: React.FC = () => {
   };
 
 
-  interface TriviaQuestion {
-    question: string;
-    answer: string;
-  }
 
 
 
@@ -345,18 +556,77 @@ const Chat: React.FC = () => {
   };
 
 
-  // Simulate bot response
+  // Add these new bot command functions
+  const getWeather = async (city: string) => {
+    try {
+      const response = await axios.get(`https://api.weatherapi.com/v1/current.json?key=00fac9608e5b18f252320138b9f76c54&q=${city}`);
+      return `Weather in ${city}: ${response.data.current.condition.text}, Temperature: ${response.data.current.temp_c}°C`;
+    } catch (error) {
+      return "Sorry, I couldn't fetch the weather information.";
+    }
+  };
+
+  const getCryptoPrice = async (crypto: string) => {
+    try {
+      const response = await axios.get(`https://api.coingecko.com/api/v3/simple/price?ids=${crypto}&vs_currencies=usd`);
+      return `Current ${crypto} price: $${response.data[crypto].usd}`;
+    } catch (error) {
+      return "Sorry, I couldn't fetch the crypto price.";
+    }
+  };
+
+  const translateText = async (text: string, targetLang: string) => {
+    try {
+      const response = await axios.post('https://translation.googleapis.com/language/translate/v2', {
+        q: text,
+        target: targetLang,
+      });
+      return response.data.translations[0].translatedText;
+    } catch (error) {
+      return "Sorry, I couldn't translate the text.";
+    }
+  };
+
+  // Update the simulateBotResponse function
   const simulateBotResponse = async (message: string) => {
     const trimmedMessage = message.trim().toLowerCase();
 
+    // Command handlers
     if (trimmedMessage === '/fact') {
       return await getRandomFact();
     } else if (trimmedMessage === '/joke') {
       return await getRandomJoke();
     } else if (trimmedMessage === '/advice') {
       return await getRandomAdvice();
-    } else if (trimmedMessage.includes('bot') || trimmedMessage.includes('help')) {
-      return "You can use the /joke, /fact, and /advice commands for interesting jokes, fact, and advice!";
+    } else if (trimmedMessage.startsWith('/weather ')) {
+      const city = trimmedMessage.replace('/weather ', '');
+      return await getWeather(city);
+    } else if (trimmedMessage.startsWith('/crypto ')) {
+      const crypto = trimmedMessage.replace('/crypto ', '');
+      return await getCryptoPrice(crypto);
+    } else if (trimmedMessage.startsWith('/translate ')) {
+      const [_, text, lang] = trimmedMessage.split(' ');
+      return await translateText(text, lang);
+    } else if (trimmedMessage === '/help') {
+      return `Available commands:
+    /fact - Get a random fact
+    /joke - Get a random joke
+    /advice - Get random advice
+    /weather [city] - Get weather for a city
+    /crypto [currency] - Get crypto price
+    /translate [text] [language] - Translate text
+    /help - Show this help message`;
+    }
+
+    // Basic conversation handling
+    if (trimmedMessage.includes('hello') || trimmedMessage.includes('hi')) {
+      return `Hello! How can I help you today?`;
+    } else if (trimmedMessage.includes('thank')) {
+      return `You're welcome! Let me know if you need anything else.`;
+    } else if (trimmedMessage.includes('bye')) {
+      return `Goodbye! Have a great day!`;
+    } else if (trimmedMessage.includes('bot')) {
+      return `I'm here to help! Try /help to see what I can do.`;
     }
 
     return '';
@@ -373,241 +643,469 @@ const Chat: React.FC = () => {
     return acc;
   }, {} as { [key: string]: Message[] });
 
+
+
+
+  // Add typing listener effect
+  useEffect(() => {
+    if (!isUsernameSet) return;
+
+    const typingRef = ref(database, `typing/${selectedGroup || 'global'}`);
+
+    onValue(typingRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const typingData = Object.values(data) as TypingUser[];
+        // Filter out stale typing indicators (older than 2 seconds)
+        const activeTyping = typingData.filter(
+          user => Date.now() - user.timestamp < 2000 && user.user !== username
+        );
+        setTypingUsers(activeTyping);
+      } else {
+        setTypingUsers([]);
+      }
+    });
+
+    return () => off(typingRef);
+  }, [isUsernameSet, selectedGroup, username]);
+
+  // Group management functions
+  const createGroup = async (name: string, description: string) => {
+    if (!name.trim() || !username) return;
+
+    const groupsRef = ref(database, 'groups');
+    const newGroupRef = push(groupsRef);
+    const groupId = newGroupRef.key;
+
+    if (!groupId) return;
+
+    const newGroup: Group = {
+      id: groupId,
+      name: name.trim(),
+      description: description.trim(),
+      members: [username],
+      createdBy: username,
+      createdAt: Date.now(),
+      avatar: multiavatar(name) // Generate avatar for group
+    };
+
+    try {
+      await set(newGroupRef, newGroup);
+      setChatState(prev => ({
+        ...prev,
+        showCreateGroup: false,
+        selectedGroupId: groupId
+      }));
+    } catch (error) {
+      console.error('Error creating group:', error);
+      alert('Failed to create group. Please try again.');
+    }
+  };
+
+  // Add group listener effect
+  useEffect(() => {
+    if (!isUsernameSet) return;
+
+    const groupsRef = ref(database, 'groups');
+
+    onValue(groupsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const groupsArray = Object.values(data) as Group[];
+        setChatState(prev => ({
+          ...prev,
+          groups: groupsArray
+        }));
+      }
+    });
+
+    return () => off(groupsRef);
+  }, [isUsernameSet]);
+
+  // Improved typing indicator
+  const handleTyping = (e: ChangeEvent<HTMLInputElement>) => {
+    setNewMessage(e.target.value);
+
+    if (!username || !isUsernameSet) return;
+
+    // Clear existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    // Update typing status
+    const typingRef = ref(database, `typing/${chatState.selectedGroupId || 'global'}/${username}`);
+    set(typingRef, {
+      user: username,
+      timestamp: Date.now()
+    });
+
+    // Set local typing state
+    setIsTyping(true);
+
+    // Clear typing status after 2 seconds
+    typingTimeoutRef.current = setTimeout(() => {
+      set(typingRef, null);
+      setIsTyping(false);
+    }, 2000);
+  };
+
+  const joinGroup = async (groupId: string) => {
+    if (!username) return;
+
+    const groupRef = ref(database, `groups/${groupId}`);
+
+    try {
+      // Get the current group data
+      const snapshot = await get(groupRef);
+      const groupData = snapshot.val() as Group;
+
+      if (!groupData) {
+        console.error('Group not found');
+        return;
+      }
+
+      // Add the user to members if not already present
+      if (!groupData.members.includes(username)) {
+        const updatedMembers = [...groupData.members, username];
+
+        // Update the members array in Firebase
+        await set(ref(database, `groups/${groupId}/members`), updatedMembers);
+
+        // Update local state
+        setChatState(prev => ({
+          ...prev,
+          selectedGroupId: groupId,
+          groups: prev.groups.map(g =>
+            g.id === groupId
+              ? { ...g, members: updatedMembers }
+              : g
+          )
+        }));
+      }
+    } catch (error) {
+      console.error('Error joining group:', error);
+      alert('Failed to join group. Please try again.');
+    }
+  };
+
   return (
-    <div className="flex flex-col h-screen w-screen bg-gray-100">
+    <div className="flex flex-col h-screen w-screen bg-gradient-to-br from-gray-50 to-gray-100 shadow-sm">
       {isUsernameSet ? (
-        <div className="flex flex-col flex-1 h-full bg-white rounded-lg overflow-hidden">
-          <div
-            ref={messagesContainerRef}
-            className="flex-1 p-4 overflow-y-auto bg-gradient-to-r from-[#f86b698e] to-[#e8f0a49b] messages-container animate-fadeIn"
-            style={{ height: '85%', paddingTop: '15px' }}
-          >
-            {/* Render grouped messages */}
-            {Object.keys(groupedMessages).map((date) => (
-              <div key={date}>
-                <h2 className="text-center text-gray-500 text-sm mb-2">{date}</h2>
-                {groupedMessages[date].map((message) => {
-                  const backgroundColor = message.backgroundColor || '#FFFFFF';
-                  const textColor = message.textColor || '#000000';
-                  const messageStyle = { backgroundColor, color: textColor };
+        <div className="flex h-full">
+          {/* Left Sidebar */}
+          <div className="w-64 bg-white border-r border-gray-200 overflow-y-auto">
+            {/* Groups Section */}
+            <div className="p-4">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-gray-800">Groups</h3>
+                <button
+                  onClick={() => setChatState(prev => ({ ...prev, showCreateGroup: true }))}
+                  className="px-3 py-1 bg-[#f26c6a] text-white rounded-lg text-sm hover:bg-[#e53935] transition-colors"
+                >
+                  Create Group
+                </button>
+              </div>
 
-                  // Convert timestamp to a Date object
-                  const messageDate = new Date(message.timestamp);
+              {/* Global Chat Button */}
+              <button
+                onClick={() => setChatState(prev => ({ ...prev, selectedGroupId: null }))}
+                className={`w-full text-left px-4 py-2 rounded-lg transition-colors mb-2 ${!chatState.selectedGroupId ? 'bg-[#f26c6a] text-white' : 'hover:bg-gray-100'
+                  }`}
+              >
+                Global Chat
+              </button>
 
-                  // Format time as HH:mm (24-hour format)
-                  const formattedTime = messageDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-                  return (
-                    <div className={`flex items-start mb-4 animate-slideIn`} key={message.id}>
-                      <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
-                        <Image
-                          src={message.avatarUrl || multiavatar(message.user)}
-                          alt="Avatar"
-                          width={40}
-                          height={40}
-                        />
+              {/* Groups List */}
+              {/* Groups List */}
+              {chatState.groups.map(group => (
+                <button
+                  key={group.id}
+                  onClick={() => handleGroupClick(group)} // New handler
+                  className={`w-full text-left px-4 py-2 rounded-lg transition-colors mb-2 ${chatState.selectedGroupId === group.id ? 'bg-[#f26c6a] text-white' : 'hover:bg-gray-100'
+                    }`}
+                >
+                  <div className="flex items-center">
+                    <div className="w-8 h-8 rounded-full overflow-hidden mr-2">
+                      <div
+                        className="w-full h-full"
+                        dangerouslySetInnerHTML={{
+                          __html: multiavatar(group.name)
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <div className="font-medium">{group.name}</div>
+                      <div className="text-xs text-gray-500 truncate">
+                        {group.description}
                       </div>
-                      <div className="ml-3 p-2 bg-white rounded-lg shadow-sm" style={messageStyle}>
-                        <div className="flex justify-between items-center mb-1 min-w-[150px]">
-                          <span className="text-sm font-semibold">{message.user}</span>
-                          <span className="text-xs text-gray-400">{formattedTime}</span>
-                        </div>
-
-                        <div
-                          className="leading-tight"
-                          style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
-                          dangerouslySetInnerHTML={{ __html: message.formattedText || message.text || '' }}
-                        />
-                        {/* {message.imageUrl && (
-                          <div className="mt-2">
-                            <Image src={message.imageUrl} alt="Sent Image" width={200} height={200} className="rounded-lg" />
-                          </div>
-                        )} */}
+                      <div className="text-xs text-gray-500">
+                        {group.members.length} members
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            ))}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Online Users Section */}
+            <div className="p-4 border-t border-gray-200">
+              <h3 className="text-lg font-bold text-gray-800 mb-4">Online Users ({onlineUsers.length})</h3>
+              {onlineUsers.map(user => (
+                <div key={user.user} className="flex items-center mb-3">
+                  <div className="relative">
+                    <div
+                      className="w-8 h-8 rounded-full overflow-hidden"
+                      dangerouslySetInnerHTML={{
+                        __html: multiavatar(user.user)
+                      }}
+                    />
+                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+                  </div>
+                  <span className="ml-2 text-sm text-gray-700">{user.user}</span>
+                </div>
+              ))}
+            </div>
           </div>
-          {/* Input for new messages */}
-          <div className="bg-white p-4" style={{ height: '15%' }}>
-            <div className="flex items-center mb-2">
-              {/* Emoji button */}
-              <button onClick={toggleEmojiMenu} ref={emojiButtonRef} className="mr-3 p-2 focus:outline-none">
-                <Image src={EmojiSVG} alt="Emoji" width={24} height={24} />
-              </button>
-              {/* Photo upload button 
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => {
-                  if (e.target.files?.[0]) {
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                      if (reader.result) {
-                        sendImage(reader.result as string);
-                      }
-                    };
-                    reader.readAsDataURL(e.target.files[0]);
-                  }
-                  else {
-                    alert('No file selected. Please select an image.');
-                  }
-                }}
-                className="hidden"
-                id="imageInput"
-              />*/}
-              {/* <label htmlFor="imageInput" className="mr-3 p-2 cursor-pointer focus:outline-none">
-                <Image src={PhotoSVG} alt="Photo" width={24} height={24} />
-              </label> */}
-              {/* Formatting buttons */}
+
+          {/* Main Chat Area */}
+          <div className="flex-1 flex flex-col">
+            {/* Chat Header */}
+            {/* Chat Header */}
+            <div className="bg-white p-4 border-b border-gray-200 flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">
+                  {chatState.selectedGroupId
+                    ? chatState.groups.find(g => g.id === chatState.selectedGroupId)?.name
+                    : 'Global Chat'}
+                </h2>
+                {typingUsers.length > 0 && (
+                  <div className="text-sm text-gray-500 italic mt-1">
+                    {typingUsers.map(user => user.user).join(', ')}
+                    {typingUsers.length === 1 ? ' is ' : ' are '}
+                    typing...
+                  </div>
+                )}
+              </div>
               <button
-                onClick={() => setIsBoldActive((prevState) => !prevState)}
-                className={`mr-3 p-2 focus:outline-none ${isBoldActive ? 'font-bold' : ''}`}
+                onClick={handleLogout}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
               >
-                Bold
-              </button>
-              <button
-                onClick={() => setIsItalicActive((prevState) => !prevState)}
-                className={`mr-3 p-2 focus:outline-none ${isItalicActive ? 'italic' : ''}`}
-              >
-                Italic
-              </button>
-              <button
-                onClick={() => setIsUnderlineActive((prevState) => !prevState)}
-                className={`mr-3 p-2 focus:outline-none ${isUnderlineActive ? 'underline' : ''}`}
-              >
-                Underline
+                Logout
               </button>
             </div>
-            {/* message input and send button */}
-            <div className="flex">
-              <input
-                type="text"
-                value={newMessage}
-                onChange={handleChange}
-                onKeyDown={handleKeyDown}
-                placeholder="Type your message..."
-                className={`flex-grow px-4 py-2 rounded-lg border border-gray-300 focus:outline-none ${isBoldActive ? 'font-bold' : ''
-                  } ${isItalicActive ? 'italic' : ''} ${isUnderlineActive ? 'underline' : ''} bg-white text-[#233d40]`}
-              />
-              <button
-                onClick={sendMessage}
-                className="ml-3 px-4 py-2 bg-[#f26c6a] text-white rounded-lg hover:bg-[#e53935] focus:outline-none"
-              >
-                Send
-              </button>
+
+            {/* Messages Container */}
+            <div
+              ref={messagesContainerRef}
+              className="flex-1 p-4 overflow-y-auto bg-gradient-to-r from-[#f86b698e] to-[#e8f0a49b]"
+            >
+              {Object.entries(groupedMessages).map(([date, messages]) => (
+                <div key={date}>
+                  <div className="text-center text-sm text-gray-500 my-2">{date}</div>
+                  {messages
+                    .filter(message =>
+                      chatState.selectedGroupId
+                        ? message.groupId === chatState.selectedGroupId
+                        : !message.groupId
+                    )
+                    .map(message => (
+                      <div key={message.id} className={`flex items-start mb-4 ${message.user === username ? 'flex-row-reverse' : ''
+                        }`}>
+                        <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
+                          {message.avatarUrl ? (
+                            <div
+                              className="w-full h-full"
+                              dangerouslySetInnerHTML={{
+                                __html: multiavatar(message.user)
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-gray-200" />
+                          )}
+                        </div>
+
+                        <div className={`mx-3 p-3 rounded-lg shadow-sm max-w-[70%] ${message.user === username ? 'bg-[#f26c6a] text-white' : 'bg-white'
+                          }`}>
+                          <div className="flex flex-col">
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="font-semibold text-sm truncate mr-2">{message.user}</span>
+                              <span className="text-xs opacity-75 flex-shrink-0">
+                                {new Date(message.timestamp).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            </div>
+                            {message.imageUrl ? (
+                              <Image
+                                src={message.imageUrl}
+                                alt="Sent image"
+                                width={200}
+                                height={200}
+                                className="rounded-lg mt-2"
+                              />
+                            ) : (
+                              <div
+                                className="break-words text-sm"
+                                dangerouslySetInnerHTML={{
+                                  __html: message.formattedText || message.text || ''
+                                }}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              ))}
             </div>
-            {/* Emoji menu */}
-            {showEmojiMenu && showEmojiMenuPosition && (
-              <div
-                className="fixed z-10 bg-[#fff6a5] border border-gray-300 rounded-lg shadow-lg p-2 animate__animated animate__fadeIn animate__faster"
-                style={{
-                  top: showEmojiMenuPosition.top - 20,  
-                  left: showEmojiMenuPosition.left,
-                  marginBottom: '2rem',  
-                }}
-              >
-                <div className="grid grid-cols-7 gap-2">
-                  {['😊', '😂', '😍', '🔥', '❤️', '🎉', '👍'].map((emoji) => (
-                    <button
-                      key={emoji}
-                      onClick={() => handleEmojiClick(emoji)}
-                      className="p-3 rounded-lg text-xl transition-transform transform hover:scale-110 hover:bg-[#ff8985]"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
+
+            {/* Input Area */}
+            <div className="bg-white p-4 border-t border-gray-200">
+              <div className="flex items-center space-x-2 mb-2">
+                <button
+                  ref={emojiButtonRef}
+                  onClick={toggleEmojiMenu}
+                  className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                >
+                  <Image src={EmojiSVG} alt="Emoji" width={24} height={24} />
+                </button>
+                <label className="p-2 rounded-full hover:bg-gray-100 transition-colors cursor-pointer">
+                  <Image src={PhotoSVG} alt="Photo" width={24} height={24} />
+
+                </label>
+                <button
+                  onClick={() => setIsBoldActive(!isBoldActive)}
+                  className={`p-2 rounded-md ${isBoldActive ? 'bg-gray-200' : 'hover:bg-gray-100'}`}
+                >
+                  B
+                </button>
+                <button
+                  onClick={() => setIsItalicActive(!isItalicActive)}
+                  className={`p-2 rounded-md ${isItalicActive ? 'bg-gray-200' : 'hover:bg-gray-100'}`}
+                >
+                  I
+                </button>
+                <button
+                  onClick={() => setIsUnderlineActive(!isUnderlineActive)}
+                  className={`p-2 rounded-md ${isUnderlineActive ? 'bg-gray-200' : 'hover:bg-gray-100'}`}
+                >
+                  U
+                </button>
               </div>
-            )}
 
-
-
-            {/* Profanity modal */}
-            {showProfanityModal && (
-              <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-                <div className="bg-white p-4 rounded-lg">
-                  <p className="text-lg font-bold mb-2">Warning: Profanity Detected</p>
-                  <p className="mb-4">Please avoid using profanity.</p>
-                  <button
-                    className="px-4 py-2 bg-[#f26c6a] text-white rounded-lg hover:bg-[#e53935] focus:outline-none"
-                    onClick={() => setShowProfanityModal(false)}
-                  >
-                    Close
-                  </button>
-                </div>
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={handleTyping}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Type your message..."
+                  className={`flex-grow px-4 py-2 rounded-lg border focus:ring-2 focus:ring-[#f26c6a] focus:border-transparent ${isBoldActive ? 'font-bold' : ''
+                    } ${isItalicActive ? 'italic' : ''} ${isUnderlineActive ? 'underline' : ''
+                    }`}
+                />
+                <button
+                  onClick={sendMessage}
+                  className="px-6 py-2 bg-[#f26c6a] text-white rounded-lg hover:bg-[#e53935] transition-colors"
+                >
+                  Send
+                </button>
               </div>
-            )}
-
-            {/* Modal for non-English language detection */}
-            {showLanguageModal && (
-              <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-                <div className="bg-white p-4 rounded-lg">
-                  <p className="text-lg font-bold mb-2">Unsupported Language</p>
-                  <p className="mb-4">Sorry, only English messages are allowed.</p>
-                  <button
-                    className="px-4 py-2 bg-[#f26c6a] text-white rounded-lg hover:bg-[#e53935] focus:outline-none"
-                    onClick={() => setShowLanguageModal(false)}
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {showWordLimitModal && (
-              <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-                <div className="bg-white p-4 rounded-lg">
-                  <p className="text-lg font-bold mb-2">30 CHARACTER LIMITS!</p>
-                  <p className="mb-4">Your message exceeds the 80-character limit. Please shorten your message.</p>
-                  <button
-                    className="px-4 py-2 bg-[#f26c6a] text-white rounded-lg hover:bg-[#e53935] focus:outline-none"
-                    onClick={() => setShowWordLimitModal(false)}
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            )}
+            </div>
           </div>
         </div>
       ) : (
-        // Username input 
-        <div className="flex flex-col items-center justify-center h-full p-4 bg-gradient-to-r from-[#f86b698e] to-[#e8f0a49b]">
-          <h1 className="text-4xl lg:text-5xl font-bold mb-2 text-[#6e0808] animate-fadeIn">
+        // Username Input Screen
+        <div className="flex flex-col items-center justify-center h-full p-4">
+          <h1 className="text-4xl lg:text-5xl font-bold mb-4 text-[#6e0808]">
             Join the
-            <span className="ml-1 mr-1"></span>
+            <span className="mx-1"></span>
             {showLive && (
-              <span className="inline-block animate-flyIn"> Live </span>
+              <span className="inline-block animate-flyIn">Live</span>
             )}
-            <span></span> Chat
+            <span className="mx-1"></span>
+            Chat
           </h1>
-
-          <p className="text-md text-[#ce0202e0] mb-4 animate-fadeIn">Gossip joyfully and openly with people</p>
+          <p className="text-md text-[#ce0202e0] mb-6">
+            Join the conversation with people around the world
+          </p>
           <input
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="Username"
-            className="mb-4 px-4 py-2 rounded-lg border border-gray-300 focus:outline-none w-full max-w-sm"
+            placeholder="Enter your username"
+            className="mb-4 px-4 py-2 rounded-lg border focus:ring-2 focus:ring-[#f26c6a] focus:border-transparent w-full max-w-sm"
           />
           <button
             onClick={handleUsernameSubmit}
-            className="px-6 py-2 bg-[#f26c6a] text-white rounded-lg hover:bg-[#e53935] focus:outline-none w-full max-w-sm"
+            className="px-6 py-2 bg-[#f26c6a] text-white rounded-lg hover:bg-[#e53935] w-full max-w-sm transition-colors"
           >
             Start Chatting
           </button>
+        </div>
+      )}
 
-          {/* How It Works modal */}
-          <p
-            className="absolute bottom-20 left-1/2 transform -translate-x-1/2 text-[#092943] text-md cursor-pointer underline"
-            onClick={() => setShowModal(true)}
-          >
-            How It Works ?
-          </p>
-          {showModal && <Modal onClose={() => setShowModal(false)} />}
+      {/* Modals */}
+      <CreateGroupModal
+        isOpen={chatState.showCreateGroup}
+        onClose={() => setChatState(prev => ({ ...prev, showCreateGroup: false }))}
+        onSubmit={createGroup}
+      />
+
+      {/* Add this with other modals */}
+      <JoinGroupModal
+        isOpen={!!joinModalGroup}
+        group={joinModalGroup}
+        onClose={() => setJoinModalGroup(null)}
+        onJoin={handleJoinGroup}
+      />
+
+      {showProfanityModal && (
+        <Modal
+          title="Warning: Profanity Detected"
+          message="Please keep the chat clean and friendly."
+          onClose={() => setShowProfanityModal(false)}
+        />
+      )}
+
+      {showLanguageModal && (
+        <Modal
+          title="Language Not Supported"
+          message="Please use English or allowed emojis only."
+          onClose={() => setShowLanguageModal(false)}
+        />
+      )}
+
+      {showWordLimitModal && (
+        <Modal
+          title="Message Too Long"
+          message="Please keep your message under 70 characters."
+          onClose={() => setShowWordLimitModal(false)}
+        />
+      )}
+
+      {/* Emoji Menu */}
+      {showEmojiMenu && showEmojiMenuPosition && (
+        <div
+          className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-2"
+          style={{
+            top: showEmojiMenuPosition.top,
+            left: showEmojiMenuPosition.left
+          }}
+        >
+          <div className="grid grid-cols-4 gap-2">
+            {allowedEmojis.map(emoji => (
+              <button
+                key={emoji}
+                onClick={() => handleEmojiClick(emoji)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-xl"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>
