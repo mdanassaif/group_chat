@@ -9,10 +9,13 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@giphy/js-fetch-api": "^5.6.0",
+    "@huggingface/inference": "^2.8.1",
     "@multiavatar/multiavatar": "^1.0.7",
-    "axios": "^1.7.2",
+    "axios": "^1.7.9",
     "bad-words": "^3.0.4",
     "firebase": "^10.12.2",
+    "gif-picker-react": "^1.4.0",
     "gravatar": "^1.8.2",
     "lucide-react": "^0.462.0",
     "md5": "^2.3.0",

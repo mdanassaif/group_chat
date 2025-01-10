@@ -2,17 +2,71 @@
 import React, { useEffect, useState, ChangeEvent, useRef } from 'react';
 import Image from 'next/image';
 import { database } from '../firebase';
-import { ref, onValue, push, set, off, get } from 'firebase/database';
+import { ref, onValue, push, set, off, get, update, onDisconnect } from 'firebase/database';
 import { v4 as uuidv4 } from 'uuid';
 import multiavatar from '@multiavatar/multiavatar';
 import Modal from './modalbox';
 import EmojiSVG from '../../public/emoji.svg';
 import PhotoSVG from '../../public/photo.svg';
 import axios from 'axios';
+import { auth, firestore } from '../firebase';
+import { doc, setDoc, getDoc, increment } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import Filter from 'bad-words';
-const filter = new Filter();
-import { Message, TypingUser, OnlineUser, Group, ChatState, CreateGroupModalProps } from '../types/ChatInterface';
+import type { Message as ChatMessage, TypingUser, OnlineUser, Group, CreateGroupModalProps } from '../types/ChatInterface';
+import Auth from './Auth';
 
+const filter = new Filter();
+
+// Add new interface for group creation cooldown
+interface GroupCreationCooldown {
+  lastCreated: number;
+  count: number;
+}
+
+// Add new interface for AI responses
+interface AIResponse {
+  trigger: string;
+  response: string;
+}
+
+// Add AI response patterns
+const AI_RESPONSES: AIResponse[] = [
+  {
+    trigger: "hey ai",
+    response: "Hey there! 👋 I'm your AI assistant. How can I help you today?"
+  },
+  {
+    trigger: "/help",
+    response: "I'm here to help! Try asking me anything about:\n- Technology\n- Programming\n- General knowledge\n- Or just chat with me!"
+  }
+];
+
+// Add new type for chat types
+type ChatType = 'global' | 'ai' | 'group';
+
+// Update ChatState interface
+interface ChatState {
+  selectedGroupId: string | null;
+  chatType: ChatType;
+  groups: Group[];
+  showCreateGroup: boolean;
+  newGroupForm: {
+    name: string;
+    description: string;
+  };
+}
+
+// Add new interfaces
+interface UserData {
+  messageCount: number;
+  isGuest: boolean;
+}
+
+// Add this interface for Hugging Face response
+interface HuggingFaceResponse {
+  generated_text: string;
+}
 
 // Modal component for joining chat groups
 const JoinGroupModal: React.FC<{
@@ -77,14 +131,32 @@ const JoinGroupModal: React.FC<{
 const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, onSubmit }) => {
   const [groupName, setGroupName] = useState('');
   const [groupDescription, setGroupDescription] = useState('');
-
+  const [error, setError] = useState('');
+  
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (groupName.trim()) {
-      onSubmit(groupName, groupDescription);
-      setGroupName('');
-      setGroupDescription('');
+    
+    // Validate group name
+    if (groupName.length < 3) {
+      setError('Group name must be at least 3 characters long');
+      return;
     }
+    
+    if (groupName.length > 30) {
+      setError('Group name must be less than 30 characters');
+      return;
+    }
+    
+    // Validate description
+    if (groupDescription.length > 100) {
+      setError('Description must be less than 100 characters');
+      return;
+    }
+    
+    onSubmit(groupName, groupDescription);
+    setGroupName('');
+    setGroupDescription('');
+    setError('');
   };
 
   if (!isOpen) return null;
@@ -142,7 +214,21 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
   );
 };
 
-
+// Update the message interface to ensure proper typing
+interface Message {
+  id: string;
+  text: string;
+  timestamp: number;
+  user: string;
+  avatarUrl?: string;
+  backgroundColor?: string;
+  textColor?: string;
+  formattedText?: string;
+  messageType?: 'text' | 'image' | 'gif';
+  mediaUrl?: string;
+  groupId?: string | null;
+  chatType?: ChatType;
+}
 
 // Main Chat component
 const Chat: React.FC = () => {
@@ -170,10 +256,11 @@ const Chat: React.FC = () => {
   const [lastSentTime, setLastSentTime] = useState<number>(0);
   const [showWordLimitModal, setShowWordLimitModal] = useState<boolean>(false);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
-  const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<{ user: string; lastSeen: number }[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [chatState, setChatState] = useState<ChatState>({
     selectedGroupId: null,
+    chatType: 'global',
     groups: [],
     showCreateGroup: false,
     newGroupForm: {
@@ -183,6 +270,37 @@ const Chat: React.FC = () => {
   });
 
   const [joinModalGroup, setJoinModalGroup] = useState<Group | null>(null);
+
+  // Add new state for group creation cooldown
+  const [groupCreationCooldown, setGroupCreationCooldown] = useState<GroupCreationCooldown>({
+    lastCreated: 0,
+    count: 0
+  });
+
+  const [showSidebar, setShowSidebar] = useState(false);
+
+  const [showGifPicker, setShowGifPicker] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userData, setUserData] = useState<UserData | null>(null);
+
+  // Add authentication handler
+  const handleAuthComplete = async (username: string, isGuest: boolean) => {
+    if (!auth.currentUser) return;
+
+    const userRef = doc(firestore, 'users', auth.currentUser.uid);
+    const userData: UserData = {
+      messageCount: 0,
+      isGuest
+    };
+
+    await setDoc(userRef, userData);
+    setUserData(userData);
+    setUsername(username);
+    setIsAuthenticated(true);
+  };
 
   const handleGroupClick = (group: Group) => {
     if (!group.members.includes(username)) {
@@ -262,9 +380,16 @@ const Chat: React.FC = () => {
         const activeUsers = Object.values(data) as OnlineUser[];
         // Filter out users who haven't been active in the last minute
         const recentlyActiveUsers = activeUsers.filter(
-          user => Date.now() - user.lastActive < 60000
+          user => {
+            const lastSeen = user.lastActive;
+            return Date.now() - lastSeen < 60000;
+          }
         );
-        setOnlineUsers(recentlyActiveUsers);
+        const formattedUsers = recentlyActiveUsers.map(user => ({
+          user: user.user,
+          lastSeen: user.lastActive
+        }));
+        setOnlineUsers(formattedUsers);
       }
     });
 
@@ -331,67 +456,46 @@ const Chat: React.FC = () => {
 
   // Message sending logic
   const sendMessage = async () => {
-    if (!newMessage.trim()) return;
-
-    // Validate message length and spam prevention
-    if (newMessage.trim().length > 70) {
-      setShowWordLimitModal(true);
-      return;
-    }
-
-    // Check for spam
-    if (newMessage.trim() === lastSentMessage.trim()) {
-      const currentTime = Date.now();
-      const cooldownTime = 15000;
-
-      if (currentTime - lastSentTime < cooldownTime) {
-        console.log(`Please wait ${Math.ceil((cooldownTime - (currentTime - lastSentTime)) / 1000)} seconds before sending the same message again.`);
-        return;
-      }
-    }
-
-    setLastSentMessage(newMessage);
-    setLastSentTime(Date.now());
-
-    // Check for allowed emojis and English text
-    const containsAllowedEmoji = allowedEmojis.some(emoji => newMessage.includes(emoji));
-    const containsEnglishText = /[a-zA-Z]/.test(newMessage);
-
-    if (!containsAllowedEmoji && !containsEnglishText) {
-      setShowLanguageModal(true);
-      return;
-    }
-
-    if (filter.isProfane(newMessage)) {
-      setShowProfanityModal(true);
-      return;
-    }
-
-    const messagesRef = ref(database, 'messages');
-    const newMessageRef = push(messagesRef);
-    const backgroundColor = randomLightColor();
-
-    // Use chatState.selectedGroupId instead of selectedGroup
-    const newMessageData = {
-      id: uuidv4(),
-      text: escapeHTML(newMessage),
-      formattedText: applyMessageFormatting(escapeHTML(newMessage)),
-      timestamp: Date.now(),
-      user: username,
-      avatarUrl: avatarUrl,
-      backgroundColor: backgroundColor,
-      textColor: '#000000',
-      groupId: chatState.selectedGroupId // Use the correct group ID from chatState
-    };
+    if (!newMessage.trim() || !auth.currentUser) return;
 
     try {
+      const messagesRef = ref(database, 'messages');
+      const newMessageRef = push(messagesRef);
+      
+      // User message
+      const newMessageData = {
+        id: uuidv4(),
+        text: newMessage, // Remove escapeHTML here
+        timestamp: Date.now(),
+        user: username,
+        avatarUrl: avatarUrl,
+        backgroundColor: randomLightColor(),
+        textColor: '#000000',
+        groupId: chatState.selectedGroupId,
+        chatType: chatState.chatType
+      };
+
       await set(newMessageRef, newMessageData);
       setNewMessage('');
       resetFormatting();
 
-      // Only send bot response in global chat
-      if (!chatState.selectedGroupId) {
-        handleBotResponse(newMessage);
+      // Handle AI responses
+      if (chatState.chatType === 'ai') {
+        const botMessageRef = push(messagesRef);
+        const aiResponse = await simulateBotResponse(newMessage);
+        
+        const botMessage = {
+          id: uuidv4(),
+          text: aiResponse, // The actual response text
+          timestamp: Date.now(),
+          user: 'AI Assistant',
+          avatarUrl: '/ai-avatar.jpg',
+          backgroundColor: '#f0f7ff',
+          textColor: '#000000',
+          chatType: chatState.chatType
+        };
+        
+        await set(botMessageRef, botMessage);
       }
     } catch (error) {
       console.error('Error sending message:', error);
@@ -512,11 +616,18 @@ const Chat: React.FC = () => {
     return '#b7ebf2';
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('chatUsername');
-    setUsername('');
-    setIsUsernameSet(false);
-    setAvatarUrl('');
+  const handleLogout = async () => {
+    try {
+      await auth.signOut();
+      localStorage.removeItem('chatUsername');
+      setUsername('');
+      setIsUsernameSet(false);
+      setAvatarUrl('');
+      setIsAuthenticated(false);
+      setUserData(null);
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   const getRandomFact = async () => {
@@ -589,49 +700,57 @@ const Chat: React.FC = () => {
 
   // Update the simulateBotResponse function
   const simulateBotResponse = async (message: string) => {
-    const trimmedMessage = message.trim().toLowerCase();
+    const lowercaseMessage = message.trim().toLowerCase();
 
-    // Command handlers
-    if (trimmedMessage === '/fact') {
+    // Check for command-based responses first
+    if (lowercaseMessage === '/fact') {
       return await getRandomFact();
-    } else if (trimmedMessage === '/joke') {
+    } else if (lowercaseMessage === '/joke') {
       return await getRandomJoke();
-    } else if (trimmedMessage === '/advice') {
+    } else if (lowercaseMessage === '/advice') {
       return await getRandomAdvice();
-    } else if (trimmedMessage.startsWith('/weather ')) {
-      const city = trimmedMessage.replace('/weather ', '');
-      return await getWeather(city);
-    } else if (trimmedMessage.startsWith('/crypto ')) {
-      const crypto = trimmedMessage.replace('/crypto ', '');
-      return await getCryptoPrice(crypto);
-    } else if (trimmedMessage.startsWith('/translate ')) {
-      const [_, text, lang] = trimmedMessage.split(' ');
-      return await translateText(text, lang);
-    } else if (trimmedMessage === '/help') {
-      return `Available commands:
-    /fact - Get a random fact
-    /joke - Get a random joke
-    /advice - Get random advice
-    /weather [city] - Get weather for a city
-    /crypto [currency] - Get crypto price
-    /translate [text] [language] - Translate text
-    /help - Show this help message`;
     }
 
-    // Basic conversation handling
-    if (trimmedMessage.includes('hello') || trimmedMessage.includes('hi')) {
-      return `Hello! How can I help you today?`;
-    } else if (trimmedMessage.includes('thank')) {
-      return `You're welcome! Let me know if you need anything else.`;
-    } else if (trimmedMessage.includes('bye')) {
-      return `Goodbye! Have a great day!`;
-    } else if (trimmedMessage.includes('bot')) {
-      return `I'm here to help! Try /help to see what I can do.`;
-    }
+    // Use Hugging Face for AI responses
+    try {
+      const response = await axios.post(
+        'https://api-inference.huggingface.co/models/facebook/blenderbot-400M-distill',
+        {
+          inputs: message,
+          parameters: {
+            max_length: 100,
+            temperature: 0.7,
+            top_p: 0.9,
+          }
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_HUGGING_FACE_API_KEY}`,
+            'Content-Type': 'application/json',
+          }
+        }
+      );
 
-    return '';
+      const result = response.data[0] as HuggingFaceResponse;
+      return result.generated_text;
+    } catch (error) {
+      console.error('Error getting AI response:', error);
+      return "I'm having trouble understanding right now. Could you try rephrasing that?";
+    }
   };
 
+  // Add new function to generate topic responses
+  const generateTopicResponse = (topic: string) => {
+    const responses: { [key: string]: string } = {
+      "nextjs": "Next.js is a React framework that enables features like server-side rendering and static site generation. It's great for building production-ready React applications!",
+      "react": "React is a JavaScript library for building user interfaces. It lets you create reusable UI components that manage their own state.",
+      "typescript": "TypeScript is a strongly typed programming language that builds on JavaScript. It adds optional static types to help catch errors early.",
+      // Add more topics as needed
+    };
+
+    return responses[topic.toLowerCase()] || 
+      `I'd be happy to help you learn about ${topic}! Could you be more specific about what you'd like to know?`;
+  };
 
   // Group messages by date
   const groupedMessages = messages.reduce((acc, message) => {
@@ -671,30 +790,40 @@ const Chat: React.FC = () => {
 
   // Group management functions
   const createGroup = async (name: string, description: string) => {
-    if (!name.trim() || !username) return;
+    if (!auth.currentUser) return;
+
+    // Check if user is guest
+    if (userData?.isGuest) {
+      alert('Guest users cannot create groups. Please sign in with Google to create groups.');
+      return;
+    }
 
     const groupsRef = ref(database, 'groups');
     const newGroupRef = push(groupsRef);
     const groupId = newGroupRef.key;
 
-    if (!groupId) return;
-
-    const newGroup: Group = {
+    const newGroup = {
       id: groupId,
-      name: name.trim(),
-      description: description.trim(),
-      members: [username],
+      name,
+      description,
       createdBy: username,
       createdAt: Date.now(),
-      avatar: multiavatar(name) // Generate avatar for group
+      members: [username]
     };
 
     try {
       await set(newGroupRef, newGroup);
       setChatState(prev => ({
         ...prev,
-        showCreateGroup: false,
-        selectedGroupId: groupId
+        groups: [...prev.groups, {
+          id: groupId as string,
+          name,
+          description,
+          createdBy: username,
+          createdAt: Date.now(),
+          members: [username]
+        }],
+        showCreateGroup: false
       }));
     } catch (error) {
       console.error('Error creating group:', error);
@@ -702,16 +831,15 @@ const Chat: React.FC = () => {
     }
   };
 
-  // Add group listener effect
+  // Add useEffect for loading groups
   useEffect(() => {
-    if (!isUsernameSet) return;
+    if (!isAuthenticated) return;
 
     const groupsRef = ref(database, 'groups');
-
     onValue(groupsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const groupsArray = Object.values(data) as Group[];
+        const groupsArray = Object.values(data);
         setChatState(prev => ({
           ...prev,
           groups: groupsArray
@@ -719,8 +847,28 @@ const Chat: React.FC = () => {
       }
     });
 
-    return () => off(groupsRef);
-  }, [isUsernameSet]);
+    return () => {
+      off(groupsRef);
+    };
+  }, [isAuthenticated]);
+
+  // Add useEffect for loading messages
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const messagesRef = ref(database, 'messages');
+    onValue(messagesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const messagesArray = Object.values(data);
+        setMessages(messagesArray);
+      }
+    });
+
+    return () => {
+      off(messagesRef);
+    };
+  }, [isAuthenticated]);
 
   // Improved typing indicator
   const handleTyping = (e: ChangeEvent<HTMLInputElement>) => {
@@ -789,13 +937,571 @@ const Chat: React.FC = () => {
     }
   };
 
+  // Update group list UI
+  const renderGroupList = () => (
+    <div className="space-y-2">
+      {/* Global Chat Button */}
+      <button
+        onClick={() => setChatState(prev => ({ ...prev, selectedGroupId: null, chatType: 'global' }))}
+        className={`
+          w-full p-3 rounded-lg transition-all transform hover:scale-102
+          flex items-center space-x-3
+          ${(!chatState.selectedGroupId && chatState.chatType === 'global')
+            ? 'bg-[#f26c6a] text-white shadow-md' 
+            : 'bg-white hover:bg-gray-50'
+          }
+        `}
+      >
+        <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
+          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+          </svg>
+        </div>
+        <div className="flex-1 text-left">
+          <h3 className="font-medium">Global Chat</h3>
+          <p className="text-sm opacity-75">Chat with everyone & AI assistant</p>
+        </div>
+      </button>
+
+      {/* AI Chat Button - New */}
+      <button
+        onClick={() => setChatState(prev => ({ ...prev, selectedGroupId: null, chatType: 'ai' }))}
+        className={`
+          w-full p-3 rounded-lg transition-all transform hover:scale-102
+          flex items-center space-x-3
+          ${(!chatState.selectedGroupId && chatState.chatType === 'ai')
+            ? 'bg-[#f26c6a] text-white shadow-md' 
+            : 'bg-white hover:bg-gray-50'
+          }
+        `}
+      >
+        <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-r from-purple-500 to-indigo-500 flex items-center justify-center">
+          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <div className="flex-1 text-left">
+          <h3 className="font-medium">AI Assistant</h3>
+          <p className="text-sm opacity-75">Chat directly with NextJS Bot</p>
+        </div>
+      </button>
+
+      {/* Existing groups */}
+      {chatState.groups.map(group => (
+        <button
+          key={group.id}
+          onClick={() => handleGroupClick(group)}
+          className={`w-full p-3 rounded-lg transition-all transform hover:scale-102 ${
+            chatState.selectedGroupId === group.id 
+              ? 'bg-[#f26c6a] text-white shadow-md' 
+              : 'bg-white hover:bg-gray-50'
+          }`}
+        >
+          <div className="flex items-center space-x-3">
+            <div className="relative">
+              <div className="w-12 h-12 rounded-full overflow-hidden">
+                <div
+                  dangerouslySetInnerHTML={{
+                    __html: multiavatar(group.name)
+                  }}
+                />
+              </div>
+              <span className="absolute -bottom-1 -right-1 bg-green-500 text-white text-xs rounded-full px-2 py-1">
+                {group.members.length}
+              </span>
+            </div>
+            <div className="flex-1 text-left">
+              <h3 className="font-medium">{group.name}</h3>
+              <p className="text-sm text-gray-500 truncate">
+                {group.description || 'No description'}
+              </p>
+            </div>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+
+  // Replace both renderMessage functions with this single version
+  const renderMessage = (message: Message) => (
+    <div key={message.id} 
+      className={`flex items-start mb-4 ${
+        message.user === username ? 'flex-row-reverse' : ''
+      }`}
+    >
+      <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden flex-shrink-0">
+        {message.user === 'AI Assistant' ? (
+          <div className="w-full h-full bg-gradient-to-r from-purple-500 to-indigo-500 flex items-center justify-center">
+            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </div>
+        ) : (
+          <div
+            className="w-full h-full"
+            dangerouslySetInnerHTML={{
+              __html: multiavatar(message.user || 'Anonymous')
+            }}
+            style={{ transform: 'scale(1.5)' }}
+          />
+        )}
+      </div>
+
+      <div className={`mx-2 sm:mx-3 p-2 sm:p-3 rounded-lg shadow-sm max-w-[80%] sm:max-w-[70%] ${
+        message.user === username 
+          ? 'bg-[#f26c6a] text-white' 
+          : message.user === 'AI Assistant'
+            ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white'
+            : 'bg-white'
+      }`}>
+        <div className="flex flex-col">
+          <div className="flex justify-between items-center mb-2">
+            <span className="font-semibold text-sm truncate mr-2">
+              {message.user}
+            </span>
+            <span className="text-xs opacity-75">
+              {new Date(message.timestamp).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </span>
+          </div>
+          {message.messageType === 'image' ? (
+            <img 
+              src={message.mediaUrl} 
+              alt={`Image from ${message.user}`}
+              className="max-w-full rounded-lg"
+              style={{ maxHeight: '300px', objectFit: 'contain' }}
+              loading="lazy"
+            />
+          ) : message.messageType === 'gif' ? (
+            <img 
+              src={message.mediaUrl} 
+              alt={`GIF from ${message.user}`}
+              className="max-w-full rounded-lg"
+              style={{ maxHeight: '300px', objectFit: 'contain' }}
+              loading="lazy"
+            />
+          ) : (
+            <div className="break-words text-sm">
+              {message.text}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  // Add new functions for handling media
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (limit to 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size too large. Please choose a file under 5MB.');
+      return;
+    }
+
+    // Check file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Please select a valid image file (JPEG, PNG, GIF, or WEBP).');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      // Convert file to base64
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      
+      reader.onload = async () => {
+        const base64String = reader.result as string;
+        
+        // Send the message with the base64 image
+        const messagesRef = ref(database, 'messages');
+        const newMessageRef = push(messagesRef);
+        
+        const newMessageData: Message = {
+          id: uuidv4(),
+          text: '',
+          timestamp: Date.now(),
+          user: username,
+          avatarUrl: avatarUrl,
+          backgroundColor: randomLightColor(),
+          textColor: '#000000',
+          messageType: 'image',
+          mediaUrl: base64String,
+          groupId: chatState.selectedGroupId,
+          chatType: chatState.chatType
+        };
+
+        await set(newMessageRef, newMessageData);
+        setIsUploading(false);
+      };
+
+      reader.onerror = (error) => {
+        throw error;
+      };
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert('Failed to upload image. Please try again.');
+      setIsUploading(false);
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''; // Reset file input
+      }
+    }
+  };
+
+  const handleGifSelect = async (gif: any) => {
+    if (!auth.currentUser) return;
+
+    try {
+      const gifUrl = gif.images.original.url;
+      const messagesRef = ref(database, 'messages');
+      const newMessageRef = push(messagesRef);
+      
+      const newMessageData: Message = {
+        id: uuidv4(),
+        text: '',
+        timestamp: Date.now(),
+        user: username,
+        avatarUrl: avatarUrl,
+        backgroundColor: randomLightColor(),
+        textColor: '#000000',
+        messageType: 'gif',
+        mediaUrl: gifUrl,
+        groupId: chatState.selectedGroupId,
+        chatType: chatState.chatType
+      };
+
+      await set(newMessageRef, newMessageData);
+      setShowGifPicker(false);
+    } catch (error) {
+      console.error('Error sending GIF:', error);
+      alert('Failed to send GIF. Please try again.');
+    }
+  };
+
+  const sendMediaMessage = async (url: string, type: 'image' | 'gif') => {
+    if (!auth.currentUser) return;
+
+    try {
+      const messagesRef = ref(database, 'messages');
+      const newMessageRef = push(messagesRef);
+
+      const newMessageData: Message = {
+        id: uuidv4(),
+        text: '', // Empty text for media messages
+        timestamp: Date.now(),
+        user: username,
+        avatarUrl: avatarUrl,
+        backgroundColor: randomLightColor(),
+        textColor: '#000000',
+        messageType: type,
+        mediaUrl: url,
+        groupId: chatState.selectedGroupId,
+        chatType: chatState.chatType
+      };
+
+      await set(newMessageRef, newMessageData);
+    } catch (error) {
+      console.error('Error sending media message:', error);
+      alert('Failed to send media. Please try again.');
+    }
+  };
+
+  // Update the message container to show empty state
+  const renderMessagesContainer = () => {
+    const filteredMessages = Object.entries(groupedMessages).flatMap(([date, messages]) =>
+      messages.filter(message => {
+        if (chatState.selectedGroupId) {
+          return message.groupId === chatState.selectedGroupId;
+        }
+        return message.chatType === chatState.chatType;
+      })
+    );
+
+    if (filteredMessages.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full text-center p-4">
+          <div className="w-24 h-24 mb-4 rounded-full bg-gradient-to-r from-[#f26c6a] to-[#e53935] flex items-center justify-center">
+            <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+          </div>
+          <h3 className="text-xl font-bold text-gray-800 mb-2">No Messages Yet</h3>
+          <p className="text-gray-600 mb-4">Be the first one to start the conversation!</p>
+          <button
+            onClick={() => document.querySelector('input[type="text"]')?.focus()}
+            className="px-6 py-2 bg-[#f26c6a] text-white rounded-lg hover:bg-[#e53935] transition-colors"
+          >
+            Start Chatting
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        {Object.entries(groupedMessages).map(([date, messages]) => {
+          const filteredMessages = messages.filter(message => {
+            if (chatState.selectedGroupId) {
+              return message.groupId === chatState.selectedGroupId;
+            }
+            return message.chatType === chatState.chatType;
+          });
+
+          return filteredMessages.length > 0 ? (
+            <div key={date}>
+              <div className="text-center text-sm text-gray-500 my-2">{date}</div>
+              {filteredMessages.map(message => renderMessage(message))}
+            </div>
+          ) : null;
+        })}
+      </>
+    );
+  };
+
+  // Add remaining messages counter for guests
+  const renderRemainingMessages = () => {
+    if (!userData?.isGuest) return null;
+
+    const remaining = 20 - userData.messageCount;
+    return (
+      <div className="text-sm text-gray-500 mt-2">
+        {remaining} messages remaining
+      </div>
+    );
+  };
+
+  // Update the GifPicker component
+  const GifPicker = () => {
+    const [search, setSearch] = useState('');
+    const [gifs, setGifs] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    const searchGifs = async (query: string = 'trending') => {
+      setLoading(true);
+      try {
+        const response = await axios.get(
+          `https://api.giphy.com/v1/gifs/search?api_key=${process.env.NEXT_PUBLIC_GIPHY_API_KEY}&q=${query}&limit=20&rating=g`
+        );
+        setGifs(response.data.data);
+      } catch (error) {
+        console.error('Error fetching GIFs:', error);
+        alert('Failed to load GIFs. Please try again.');
+      }
+      setLoading(false);
+    };
+
+    // Load trending GIFs on component mount
+    useEffect(() => {
+      searchGifs();
+    }, []);
+
+    return (
+      <div className="absolute bottom-20 right-4 z-50 bg-white rounded-lg shadow-xl p-4 w-80 h-96">
+        <div className="flex flex-col h-full">
+          <div className="flex justify-between items-center mb-4">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                if (e.target.value) searchGifs(e.target.value);
+              }}
+              placeholder="Search GIFs..."
+              className="flex-1 p-2 border rounded-lg mr-2"
+            />
+            <button 
+              onClick={() => setShowGifPicker(false)}
+              className="p-2 hover:bg-gray-100 rounded-full"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto grid grid-cols-2 gap-2">
+            {loading ? (
+              <div className="col-span-2 flex justify-center items-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#f26c6a]"></div>
+              </div>
+            ) : (
+              gifs.map((gif) => (
+                <div 
+                  key={gif.id}
+                  className="relative group cursor-pointer rounded-lg overflow-hidden hover:opacity-80 transition-opacity"
+                  onClick={() => handleGifSelect(gif)}
+                >
+                  <img
+                    src={gif.images.fixed_height_small.url}
+                    alt="GIF"
+                    className="w-full h-auto rounded-lg"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-opacity" />
+                </div>
+              ))
+            )}
+          </div>
+          
+          <div className="mt-2 text-xs text-gray-500 text-center">
+            Powered by GIPHY
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Update the useEffect for authentication persistence
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setIsAuthenticated(true);
+        // Load user data from Firestore
+        const loadUserData = async () => {
+          const userRef = doc(firestore, 'users', user.uid);
+          const userDoc = await getDoc(userRef);
+          if (userDoc.exists()) {
+            setUserData(userDoc.data() as UserData);
+            setUsername(user.displayName || 'Anonymous');
+          }
+        };
+        loadUserData();
+      } else {
+        setIsAuthenticated(false);
+        setUserData(null);
+        setUsername('');
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Add this useEffect to track online users
+  useEffect(() => {
+    if (!isAuthenticated || !username) return;
+
+    const onlineUsersRef = ref(database, 'onlineUsers');
+    const userStatusRef = ref(database, `onlineUsers/${username}`);
+    const userStatus = {
+      user: username,
+      lastSeen: Date.now()
+    };
+
+    // Set user as online
+    set(userStatusRef, userStatus);
+
+    // Update user's last seen every minute
+    const intervalId = setInterval(() => {
+      update(userStatusRef, { lastSeen: Date.now() });
+    }, 60000);
+
+    // Remove user when they go offline
+    onDisconnect(userStatusRef).remove();
+
+    // Listen for online users changes
+    onValue(onlineUsersRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const usersArray = Object.values(data) as { user: string; lastSeen: number }[];
+        // Filter out current user and inactive users
+        const activeUsers = usersArray.filter(
+          user => 
+            user.user !== username && // Exclude current user
+            Date.now() - user.lastSeen < 5 * 60 * 1000 // Only show users active in last 5 minutes
+        );
+        setOnlineUsers(activeUsers);
+      } else {
+        setOnlineUsers([]);
+      }
+    });
+
+    return () => {
+      clearInterval(intervalId);
+      set(userStatusRef, null);
+      off(onlineUsersRef);
+    };
+  }, [isAuthenticated, username]);
+
+  // Update the renderOnlineUsers function
+  const renderOnlineUsers = () => (
+    <div className="p-4 border-t border-gray-200">
+      <h3 className="text-lg font-bold text-gray-800 mb-4">
+        Other Users Online ({onlineUsers.length})
+      </h3>
+      {onlineUsers.length > 0 ? (
+        onlineUsers.map(user => (
+          <div key={user.user} className="flex items-center mb-3">
+            <div className="relative">
+              <div
+                className="w-8 h-8 rounded-full overflow-hidden"
+                dangerouslySetInnerHTML={{
+                  __html: multiavatar(user.user)
+                }}
+              />
+              <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+            </div>
+            <span className="ml-2 text-sm text-gray-700">{user.user}</span>
+          </div>
+        ))
+      ) : (
+        <div className="text-sm text-gray-500">No other users online</div>
+      )}
+    </div>
+  );
+
   return (
-    <div className="flex flex-col h-screen w-screen bg-gradient-to-br from-gray-50 to-gray-100 shadow-sm">
-      {isUsernameSet ? (
-        <div className="flex h-full">
-          {/* Left Sidebar */}
-          <div className="w-64 bg-white border-r border-gray-200 overflow-y-auto">
-            {/* Groups Section */}
+    <>
+      {!isAuthenticated ? (
+        <Auth onAuthComplete={handleAuthComplete} />
+      ) : (
+        <div className="flex flex-row h-screen w-screen bg-gradient-to-br from-gray-50 to-gray-100 shadow-sm">
+          {/* Mobile Menu Toggle Button - New */}
+          <button 
+            onClick={() => setShowSidebar(prev => !prev)}
+            className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-md"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+            </svg>
+          </button>
+
+          {/* Left Sidebar - Updated with responsive classes */}
+          <div className={`
+            ${showSidebar ? 'translate-x-0' : '-translate-x-full'}
+            lg:translate-x-0
+            fixed lg:relative
+            z-40
+            w-80 lg:w-64
+            h-full
+            bg-white
+            border-r border-gray-200
+            overflow-y-auto
+            transition-transform duration-300 ease-in-out
+            shadow-lg lg:shadow-none
+          `}>
+            {/* Sidebar Header - New */}
+            <div className="p-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-800">Chat Groups</h2>
+                <button 
+                  onClick={() => setShowSidebar(false)}
+                  className="lg:hidden p-2 hover:bg-gray-100 rounded-full"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Rest of sidebar content */}
             <div className="p-4">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-gray-800">Groups</h3>
@@ -808,173 +1514,99 @@ const Chat: React.FC = () => {
               </div>
 
               {/* Global Chat Button */}
-              <button
-                onClick={() => setChatState(prev => ({ ...prev, selectedGroupId: null }))}
-                className={`w-full text-left px-4 py-2 rounded-lg transition-colors mb-2 ${!chatState.selectedGroupId ? 'bg-[#f26c6a] text-white' : 'hover:bg-gray-100'
-                  }`}
-              >
-                Global Chat
-              </button>
+              
 
               {/* Groups List */}
-              {/* Groups List */}
-              {chatState.groups.map(group => (
-                <button
-                  key={group.id}
-                  onClick={() => handleGroupClick(group)} // New handler
-                  className={`w-full text-left px-4 py-2 rounded-lg transition-colors mb-2 ${chatState.selectedGroupId === group.id ? 'bg-[#f26c6a] text-white' : 'hover:bg-gray-100'
-                    }`}
-                >
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 rounded-full overflow-hidden mr-2">
-                      <div
-                        className="w-full h-full"
-                        dangerouslySetInnerHTML={{
-                          __html: multiavatar(group.name)
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <div className="font-medium">{group.name}</div>
-                      <div className="text-xs text-gray-500 truncate">
-                        {group.description}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {group.members.length} members
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              ))}
+              {renderGroupList()}
             </div>
 
-            {/* Online Users Section */}
-            <div className="p-4 border-t border-gray-200">
-              <h3 className="text-lg font-bold text-gray-800 mb-4">Online Users ({onlineUsers.length})</h3>
-              {onlineUsers.map(user => (
-                <div key={user.user} className="flex items-center mb-3">
-                  <div className="relative">
-                    <div
-                      className="w-8 h-8 rounded-full overflow-hidden"
-                      dangerouslySetInnerHTML={{
-                        __html: multiavatar(user.user)
-                      }}
-                    />
-                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
-                  </div>
-                  <span className="ml-2 text-sm text-gray-700">{user.user}</span>
-                </div>
-              ))}
-            </div>
+            {/* Online Users */}
+            {renderOnlineUsers()}
           </div>
 
-          {/* Main Chat Area */}
-          <div className="flex-1 flex flex-col">
-            {/* Chat Header */}
-            {/* Chat Header */}
-            <div className="bg-white p-4 border-b border-gray-200 flex justify-between items-center">
-              <div>
-                <h2 className="text-xl font-bold text-gray-800">
-                  {chatState.selectedGroupId
-                    ? chatState.groups.find(g => g.id === chatState.selectedGroupId)?.name
-                    : 'Global Chat'}
-                </h2>
-                {typingUsers.length > 0 && (
-                  <div className="text-sm text-gray-500 italic mt-1">
-                    {typingUsers.map(user => user.user).join(', ')}
-                    {typingUsers.length === 1 ? ' is ' : ' are '}
-                    typing...
-                  </div>
-                )}
+          {/* Main Chat Area - Updated with responsive classes */}
+          <div className="flex-1 flex flex-col w-full lg:w-auto">
+            {/* Chat Header - Updated */}
+            <div className="bg-white p-4 border-b border-gray-200">
+              <div className="flex justify-between items-center">
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-xl font-bold text-gray-800 truncate">
+                    {chatState.selectedGroupId
+                      ? chatState.groups.find(g => g.id === chatState.selectedGroupId)?.name
+                      : chatState.chatType === 'ai'
+                        ? 'AI Assistant'
+                        : 'Global Chat'
+                    }
+                  </h2>
+                  {chatState.chatType === 'ai' && (
+                    <p className="text-sm text-gray-500 mt-1">
+                      Try saying "hey nextjsbot" or ask about Next.js, React, or TypeScript
+                    </p>
+                  )}
+                  {typingUsers.length > 0 && (
+                    <div className="text-sm text-gray-500 italic mt-1 truncate">
+                      {typingUsers.map(user => user.user).join(', ')}
+                      {typingUsers.length === 1 ? ' is ' : ' are '}
+                      typing...
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="ml-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Logout
+                </button>
+                {renderRemainingMessages()}
               </div>
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Logout
-              </button>
             </div>
 
-            {/* Messages Container */}
+            {/* Messages Container - Updated */}
             <div
               ref={messagesContainerRef}
-              className="flex-1 p-4 overflow-y-auto bg-gradient-to-r from-[#f86b698e] to-[#e8f0a49b]"
+              className="flex-1 p-2 sm:p-4 overflow-y-auto bg-gradient-to-r from-[#f86b698e] to-[#e8f0a49b]"
             >
-              {Object.entries(groupedMessages).map(([date, messages]) => (
-                <div key={date}>
-                  <div className="text-center text-sm text-gray-500 my-2">{date}</div>
-                  {messages
-                    .filter(message =>
-                      chatState.selectedGroupId
-                        ? message.groupId === chatState.selectedGroupId
-                        : !message.groupId
-                    )
-                    .map(message => (
-                      <div key={message.id} className={`flex items-start mb-4 ${message.user === username ? 'flex-row-reverse' : ''
-                        }`}>
-                        <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
-                          {message.avatarUrl ? (
-                            <div
-                              className="w-full h-full"
-                              dangerouslySetInnerHTML={{
-                                __html: multiavatar(message.user)
-                              }}
-                            />
-                          ) : (
-                            <div className="w-full h-full bg-gray-200" />
-                          )}
-                        </div>
-
-                        <div className={`mx-3 p-3 rounded-lg shadow-sm max-w-[70%] ${message.user === username ? 'bg-[#f26c6a] text-white' : 'bg-white'
-                          }`}>
-                          <div className="flex flex-col">
-                            <div className="flex justify-between items-center mb-2">
-                              <span className="font-semibold text-sm truncate mr-2">{message.user}</span>
-                              <span className="text-xs opacity-75 flex-shrink-0">
-                                {new Date(message.timestamp).toLocaleTimeString([], {
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                              </span>
-                            </div>
-                            {message.imageUrl ? (
-                              <Image
-                                src={message.imageUrl}
-                                alt="Sent image"
-                                width={200}
-                                height={200}
-                                className="rounded-lg mt-2"
-                              />
-                            ) : (
-                              <div
-                                className="break-words text-sm"
-                                dangerouslySetInnerHTML={{
-                                  __html: message.formattedText || message.text || ''
-                                }}
-                              />
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              ))}
+              {/* Update message bubbles for better mobile display */}
+              {renderMessagesContainer()}
             </div>
 
-            {/* Input Area */}
-            <div className="bg-white p-4 border-t border-gray-200">
-              <div className="flex items-center space-x-2 mb-2">
+            {/* Input Area - Updated */}
+            <div className="bg-white p-2 sm:p-4 border-t border-gray-200">
+              <div className="flex flex-wrap items-center gap-2 mb-2">
                 <button
                   ref={emojiButtonRef}
                   onClick={toggleEmojiMenu}
                   className="p-2 rounded-full hover:bg-gray-100 transition-colors"
                 >
-                  <Image src={EmojiSVG} alt="Emoji" width={24} height={24} />
+                  <Image src={EmojiSVG} alt="Emoji" width={20} height={20} className="sm:w-6 sm:h-6" />
                 </button>
-                <label className="p-2 rounded-full hover:bg-gray-100 transition-colors cursor-pointer">
-                  <Image src={PhotoSVG} alt="Photo" width={24} height={24} />
+                
+                {/* Image upload button */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept="image/*"
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                  disabled={isUploading}
+                >
+                  <Image src={PhotoSVG} alt="Upload" width={20} height={20} className="sm:w-6 sm:h-6" />
+                </button>
 
-                </label>
+                {/* GIF button */}
+                <button
+                  onClick={() => setShowGifPicker(!showGifPicker)}
+                  className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                >
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-8 12.5h-1.5V14h-2v1.5H6v-3h1.5V14h2v-1.5H11v3zm3.5 0h-1.5V9H15v6.5zm3.5 0h-1.5V9H19v6.5z"/>
+                  </svg>
+                </button>
+
                 <button
                   onClick={() => setIsBoldActive(!isBoldActive)}
                   className={`p-2 rounded-md ${isBoldActive ? 'bg-gray-200' : 'hover:bg-gray-100'}`}
@@ -995,55 +1627,29 @@ const Chat: React.FC = () => {
                 </button>
               </div>
 
-              <div className="flex space-x-2">
+              {/* GIF Picker */}
+              {showGifPicker && (
+                <GifPicker />
+              )}
+
+              <div className="flex gap-2">
                 <input
                   type="text"
                   value={newMessage}
                   onChange={handleTyping}
                   onKeyDown={handleKeyDown}
                   placeholder="Type your message..."
-                  className={`flex-grow px-4 py-2 rounded-lg border focus:ring-2 focus:ring-[#f26c6a] focus:border-transparent ${isBoldActive ? 'font-bold' : ''
-                    } ${isItalicActive ? 'italic' : ''} ${isUnderlineActive ? 'underline' : ''
-                    }`}
+                  className="flex-grow px-3 py-2 text-sm sm:text-base rounded-lg border focus:ring-2 focus:ring-[#f26c6a] focus:border-transparent"
                 />
                 <button
                   onClick={sendMessage}
-                  className="px-6 py-2 bg-[#f26c6a] text-white rounded-lg hover:bg-[#e53935] transition-colors"
+                  className="px-4 sm:px-6 py-2 bg-[#f26c6a] text-white rounded-lg hover:bg-[#e53935] transition-colors whitespace-nowrap"
                 >
                   Send
                 </button>
               </div>
             </div>
           </div>
-        </div>
-      ) : (
-        // Username Input Screen
-        <div className="flex flex-col items-center justify-center h-full p-4">
-          <h1 className="text-4xl lg:text-5xl font-bold mb-4 text-[#6e0808]">
-            Join the
-            <span className="mx-1"></span>
-            {showLive && (
-              <span className="inline-block animate-flyIn">Live</span>
-            )}
-            <span className="mx-1"></span>
-            Chat
-          </h1>
-          <p className="text-md text-[#ce0202e0] mb-6">
-            Join the conversation with people around the world
-          </p>
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="Enter your username"
-            className="mb-4 px-4 py-2 rounded-lg border focus:ring-2 focus:ring-[#f26c6a] focus:border-transparent w-full max-w-sm"
-          />
-          <button
-            onClick={handleUsernameSubmit}
-            className="px-6 py-2 bg-[#f26c6a] text-white rounded-lg hover:bg-[#e53935] w-full max-w-sm transition-colors"
-          >
-            Start Chatting
-          </button>
         </div>
       )}
 
@@ -1091,8 +1697,8 @@ const Chat: React.FC = () => {
         <div
           className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-2"
           style={{
-            top: showEmojiMenuPosition.top,
-            left: showEmojiMenuPosition.left
+            top: Math.min(showEmojiMenuPosition.top, window.innerHeight - 200),
+            left: Math.min(showEmojiMenuPosition.left, window.innerWidth - 200)
           }}
         >
           <div className="grid grid-cols-4 gap-2">
@@ -1108,7 +1714,7 @@ const Chat: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 
 };
