@@ -839,7 +839,7 @@ const Chat: React.FC = () => {
     onValue(groupsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const groupsArray = Object.values(data);
+        const groupsArray = Object.values(data) as Group[];
         setChatState(prev => ({
           ...prev,
           groups: groupsArray
