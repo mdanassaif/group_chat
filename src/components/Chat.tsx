@@ -237,13 +237,7 @@ const Chat: React.FC = () => {
   const [newMessage, setNewMessage] = useState<string>('');
   const [showEmojiMenu, setShowEmojiMenu] = useState(false);
   const [showEmojiMenuPosition, setShowEmojiMenuPosition] = useState<{ top: number; left: number } | null>(null);
-  const [username, setUsername] = useState<string>(() => {
-    // Initialize username from localStorage if available
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('chatUsername') || '';
-    }
-    return '';
-  });
+  const [username, setUsername] = useState<string>('');
   const [isUsernameSet, setIsUsernameSet] = useState<boolean>(false);
   const [avatarUrl, setAvatarUrl] = useState<string>('');
   const [isBoldActive, setIsBoldActive] = useState(false);
