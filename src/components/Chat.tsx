@@ -1235,7 +1235,7 @@ const Chat: React.FC = () => {
           <h3 className="text-xl font-bold text-gray-800 mb-2">No Messages Yet</h3>
           <p className="text-gray-600 mb-4">Be the first one to start the conversation!</p>
           <button
-            onClick={() => document.querySelector('input[type="text"]')?.focus()}
+            onClick={() => (document.querySelector('input[type="text"]') as HTMLInputElement)?.focus()}
             className="px-6 py-2 bg-[#f26c6a] text-white rounded-lg hover:bg-[#e53935] transition-colors"
           >
             Start Chatting
