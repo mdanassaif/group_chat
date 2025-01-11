@@ -409,7 +409,7 @@ const Chat: React.FC = () => {
       const data = snapshot.val();
       if (data) {
         const messagesArray: Message[] = Object.values(data) as Message[];
-        setMessages(messagesArray);
+        setMessages(messagesArray as Message[]);
         if (!initialLoad) {
           scrollToBottom();
         }
@@ -860,7 +860,7 @@ const Chat: React.FC = () => {
     onValue(messagesRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const messagesArray = Object.values(data);
+        const messagesArray = Object.values(data) as Message[];
         setMessages(messagesArray);
       }
     });
